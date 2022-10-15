@@ -1,0 +1,6 @@
+(library
+ (public_name antireduce_graphs)
+ (name antireduce_graphs)
+ (libraries core antireduce)
+ (preprocess
+  (pps ppx_sexp_conv ppx_compare ppx_hash ppx_yojson_conv)))
