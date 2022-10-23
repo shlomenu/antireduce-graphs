@@ -38,7 +38,7 @@ let find_duplicates dir =
        (module Traversal)
        candidate_transform_to_traversal priority
 
-let execute_and_save ~timeout ?(attempts = 1) ~gmr j =
+let execute_and_save ~timeout ?(attempts = 1) ~dsl j =
   let max_node_color = SU.to_int @@ SU.member "max_node_color" j in
   let default_program =
     Abstraction
@@ -54,7 +54,7 @@ let execute_and_save ~timeout ?(attempts = 1) ~gmr j =
       (reset_color (add Fn.id) out).graph
     else out.graph
   in
-  execute_and_save ~timeout ~attempts ~gmr ~initial_primitives ~default_program
-    ~default_output ~evaluate:(evaluate ~max_node_color) ~postprocess_output
+  execute_and_save ~timeout ~attempts ~dsl ~default_program ~default_output
+    ~evaluate:(evaluate ~max_node_color) ~postprocess_output
     ~yojson_of_output:yojson_of_graph ~transform_type:graph_transform
     ~domain:name_of_domain j
