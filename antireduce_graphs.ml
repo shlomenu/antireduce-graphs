@@ -56,5 +56,4 @@ let execute_and_save ~timeout ?(attempts = 1) ~dsl j =
   in
   execute_and_save ~timeout ~attempts ~dsl ~default_program ~default_output
     ~evaluate:(evaluate ~max_node_color) ~postprocess_output
-    ~yojson_of_output:yojson_of_graph ~transform_type:graph_transform
-    ~domain:name_of_domain j
+    ~yojson_of_output:yojson_of_graph ~transform_type:graph_transform j
