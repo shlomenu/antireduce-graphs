@@ -139,8 +139,7 @@ let initial_primitives =
   @@ List.map initial_primitives_types_alist ~f:(fun (name, ty) ->
          (name, Primitive {name; ty}) )
 
-let initial_dsl =
-  dsl_of_primitives ~state_type:graph_state initial_primitives_list
+let initial_dsl = dsl_of_primitives graph_state initial_primitives_list
 
 let initial_primitive_entries =
   Hashtbl.of_alist_exn (module String)
