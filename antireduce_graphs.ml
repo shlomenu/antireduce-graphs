@@ -23,14 +23,14 @@ let find_duplicates dir =
            { output=
                initial_state_of_graph @@ graph_of_yojson @@ SU.member "output" j
            ; program_size=
-               (let program_str = SU.to_string @@ SU.member "program" j in
-                match parse_program program_str with
+               (let original = SU.to_string @@ SU.member "original" j in
+                match parse_program original with
                 | Some p ->
                     size_of_program p
                 | None ->
                     failwith
-                    @@ Format.sprintf "could not parse (graph) program: %s"
-                         program_str )
+                    @@ Format.sprintf "could not parse graph domain program: %s"
+                         original )
            ; filename
            ; path } )
   |> Array.to_list
