@@ -15,7 +15,7 @@ let parse_program_exn = Fn.compose Util.value_exn parse_program
 
 let find_duplicates dir =
   let priority c_1 c_2 = compare c_1.program_size c_2.program_size in
-  Sys.readdir dir
+  Caml.Sys.readdir dir
   |> Array.filter_map ~f:(fun filename ->
          let path = Filename.concat dir filename in
          let j = S.from_file path in
