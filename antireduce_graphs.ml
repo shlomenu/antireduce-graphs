@@ -1,13 +1,12 @@
 open Core
 open Antireduce
 open Program
-open Transforms
 include State
 include Eval
 
 let name_of_domain = "graph"
 
-let candidate_transform_to_traversal c = traversal c.output
+let prededup_frontier_entry_to_traversal c = traversal c.output
 
 let parse_program = Parser.parse_program initial_primitives
 
@@ -36,7 +35,7 @@ let find_duplicates dir =
   |> Array.to_list
   |> verbose_duplicates
        (module Traversal)
-       candidate_transform_to_traversal priority
+       prededup_frontier_entry_to_traversal priority
 
 let execute_and_save ~timeout ?(attempts = 1) ~dsl j =
   let max_node_color = SU.to_int @@ SU.member "max_node_color" j in
@@ -56,4 +55,4 @@ let execute_and_save ~timeout ?(attempts = 1) ~dsl j =
   in
   execute_and_save ~timeout ~attempts ~dsl ~default_program ~default_output
     ~evaluate:(evaluate ~max_node_color) ~postprocess_output
-    ~yojson_of_output:yojson_of_graph ~transform_type:graph_transform j
+    ~yojson_of_output:yojson_of_graph ~request:graph_transform j

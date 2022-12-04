@@ -227,7 +227,7 @@ let pop (f : state -> state) (s : state) : state =
 
 let for_i (i : int) (g : state -> state) (f : state -> state) (s : state) :
     state =
-  f @@ List.fold (Util.range i) ~init:s ~f:(fun s' _ -> g s')
+  f @@ List.fold (List.range 0 i) ~init:s ~f:(fun s' _ -> g s')
 
 let proc (g : state -> state) (f : state -> state) (s : state) : state =
   f {(g {s with positions= []}) with positions= s.positions}
