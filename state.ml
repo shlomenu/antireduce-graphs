@@ -8,7 +8,7 @@ type graph =
   { nodes: (int, int) Hashtbl.t
   ; forward_edges: (int, int option Array.t) Hashtbl.t
   ; backward_edges: (int, int option Array.t) Hashtbl.t
-  ; max_node_color: int }
+  ; max_color: int }
 
 let yojson_of_nodes = yojson_of_hashtbl yojson_of_int yojson_of_int
 
@@ -21,7 +21,7 @@ let yojson_of_graph g =
     [ ("nodes", yojson_of_nodes g.nodes)
     ; ("forward_edges", yojson_of_edges g.forward_edges)
     ; ("backward_edges", yojson_of_edges g.backward_edges)
-    ; ("max_node_color", `Int g.max_node_color) ]
+    ; ("max_color", `Int g.max_color) ]
 
 let nodes_of_yojson = hashtbl_of_yojson (module Int) int_of_yojson int_of_yojson
 
@@ -36,28 +36,28 @@ let graph_of_yojson = function
       [ ("nodes", j_nodes)
       ; ("forward_edges", j_forward_edges)
       ; ("backward_edges", j_backward_edges)
-      ; ("max_node_color", `Int max_node_color) ] ->
+      ; ("max_color", `Int max_color) ] ->
       { nodes= nodes_of_yojson j_nodes
       ; forward_edges= edges_of_yojson j_forward_edges
       ; backward_edges= edges_of_yojson j_backward_edges
-      ; max_node_color }
+      ; max_color }
   | _ ->
       failwith "corrupted graph"
 
 let add_node g color =
-  if color < 0 || color >= g.max_node_color then
+  if color < 0 || color >= g.max_color then
     let msg =
       Printf.sprintf "add_node: color (%d) is not below the threshold (%d)"
-        color g.max_node_color
+        color g.max_color
     in
     failwith msg
   else
     let node = Hashtbl.length g.nodes in
     Hashtbl.add_exn g.nodes ~key:node ~data:color ;
     Hashtbl.add_exn g.forward_edges ~key:node
-      ~data:(Array.create ~len:g.max_node_color None) ;
+      ~data:(Array.create ~len:g.max_color None) ;
     Hashtbl.add_exn g.backward_edges ~key:node
-      ~data:(Array.create ~len:g.max_node_color None) ;
+      ~data:(Array.create ~len:g.max_color None) ;
     node
 
 let add_edge ~dir g cursor neighbor =
@@ -85,12 +85,12 @@ let add_edge ~dir g cursor neighbor =
       cursor_edges.(neighbor_color) <- Some neighbor ;
       neighbor_edges.(cursor_color) <- Some cursor )
 
-let initial_graph ~max_node_color =
+let initial_graph ~max_color =
   let g =
     { nodes= Hashtbl.create (module Int)
     ; forward_edges= Hashtbl.create (module Int)
     ; backward_edges= Hashtbl.create (module Int)
-    ; max_node_color }
+    ; max_color }
   in
   ignore (add_node g 0 : int) ;
   g
@@ -104,8 +104,8 @@ type state =
   ; colors: int list }
 [@@deriving yojson]
 
-let initial_state ~max_node_color =
-  { graph= initial_graph ~max_node_color
+let initial_state ~max_color =
+  { graph= initial_graph ~max_color
   ; cursor= 0
   ; color= 0
   ; dir= Forward
@@ -164,7 +164,7 @@ let reorient (f : state -> state) (s : state) : state =
   f s
 
 let next (f : state -> state) (s : state) : state =
-  s.color <- (s.color + 1) mod s.graph.max_node_color ;
+  s.color <- (s.color + 1) mod s.graph.max_color ;
   f s
 
 let set_color_under_cursor (f : state -> state) (s : state) : state =

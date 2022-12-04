@@ -41,13 +41,13 @@ let graph_app3 =
 let graph_for =
   graph_int @> graph_transform @> graph_transform @> graph_state @> graph_state
 
-let graph_values ~max_node_color =
+let graph_values ~max_color =
   Hashtbl.of_alist_exn (module String)
-  @@ ( List.range 0 @@ max 11 max_node_color
+  @@ ( List.range 0 @@ max 11 max_color
      |> List.map ~f:(fun i -> (string_of_int i, Int i)) )
   @ [ ("plus", IntOp2 ( + ))
     ; ("mult", IntOp2 ( * ))
-    ; ("initial", State (initial_state ~max_node_color))
+    ; ("initial", State (initial_state ~max_color))
     ; ("identity", Transform identity)
     ; ("reorient", App1 reorient)
     ; ("next", App1 next)
@@ -67,7 +67,7 @@ let graph_values ~max_node_color =
     ; ("pos_proc", App2 pos_proc)
     ; ("color_proc", App2 color_proc) ]
 
-let lookup ~max_node_color = Hashtbl.find_exn @@ graph_values ~max_node_color
+let lookup ~max_color = Hashtbl.find_exn @@ graph_values ~max_color
 
 let eval gv_1 gv_2 =
   match (gv_1, gv_2) with
@@ -104,8 +104,8 @@ let eval gv_1 gv_2 =
   | For _, _ ->
       failwith "Graphs.evaluator: apply of for_i to non-integer"
 
-let initial_primitives_types_alist ~max_node_color =
-  ( List.range 0 @@ max 10 max_node_color
+let initial_primitives_types_alist ~max_color =
+  ( List.range 0 @@ max 10 max_color
   |> List.map ~f:(fun i -> (string_of_int i, graph_int)) )
   @ [ ("plus", graph_int_binop)
     ; ("mult", graph_int_binop)
@@ -128,22 +128,21 @@ let initial_primitives_types_alist ~max_node_color =
     ; ("pos_proc", graph_app2)
     ; ("color_proc", graph_app2) ]
 
-let initial_primitives_list ~max_node_color =
-  initial_primitives_types_alist ~max_node_color
+let initial_primitives_list ~max_color =
+  initial_primitives_types_alist ~max_color
   |> List.map ~f:(fun (name, ty) -> Primitive {name; ty})
 
-let initial_primitives ~max_node_color =
+let initial_primitives ~max_color =
   Hashtbl.of_alist_exn (module String)
   @@ List.map ~f:(fun (name, ty) -> (name, Primitive {name; ty}))
-  @@ initial_primitives_types_alist ~max_node_color
+  @@ initial_primitives_types_alist ~max_color
 
-let initial_dsl ~max_node_color =
-  dsl_of_primitives graph_state @@ initial_primitives_list ~max_node_color
+let initial_dsl ~max_color =
+  dsl_of_primitives graph_state @@ initial_primitives_list ~max_color
 
-let initial_primitive_entries ~max_node_color =
+let initial_primitive_entries ~max_color =
   Hashtbl.of_alist_exn (module String)
-  @@ List.map (initial_dsl ~max_node_color).library ~f:(fun ent ->
-         (ent.name, ent) )
+  @@ List.map (initial_dsl ~max_color).library ~f:(fun ent -> (ent.name, ent))
 
 let rec reduce_identity identity_type = function
   | Abstraction b -> (
@@ -176,17 +175,17 @@ let naturalize (ty : dc_type) (f : graph_value executable -> graph_value option)
                failwith "could not naturalize graph transform" ) )
   else None
 
-let evaluate_with_initial ~max_node_color =
+let evaluate_with_initial ~max_color =
   evaluate
     ~preprocess:(reduce_identity graph_transform)
-    naturalize (lookup ~max_node_color) eval
+    naturalize (lookup ~max_color) eval
     [Primitive {name= "initial"; ty= graph_state}]
 
-let evaluate ~max_node_color ~timeout ~attempts p =
+let evaluate ~max_color ~timeout ~attempts p =
   Option.value_map ~default:None ~f:Fn.id
   @@ Util.run_for_interval ~attempts timeout (fun () ->
          try
-           match evaluate_with_initial ~max_node_color p with
+           match evaluate_with_initial ~max_color p with
            | Some (State out) ->
                Some out
            | _ ->
