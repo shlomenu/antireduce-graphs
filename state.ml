@@ -100,7 +100,8 @@ type state =
   ; mutable cursor: int
   ; mutable color: int
   ; mutable dir: direction
-  ; positions: int list }
+  ; positions: int list
+  ; colors: int list }
 [@@deriving yojson]
 
 let initial_state ~max_node_color =
@@ -108,7 +109,8 @@ let initial_state ~max_node_color =
   ; cursor= 0
   ; color= 0
   ; dir= Forward
-  ; positions= [] }
+  ; positions= []
+  ; colors= [] }
 
 let cursor_neighbors s =
   match s.dir with
@@ -152,7 +154,7 @@ end
 let equal_state s_1 s_2 = Traversal.equal (traversal s_1) (traversal s_2)
 
 let initial_state_of_graph graph =
-  {graph; cursor= 0; color= 0; dir= Forward; positions= []}
+  {graph; cursor= 0; color= 0; dir= Forward; positions= []; colors= []}
 
 let identity : state -> state = Fn.id
 
@@ -163,6 +165,10 @@ let reorient (f : state -> state) (s : state) : state =
 
 let next (f : state -> state) (s : state) : state =
   s.color <- (s.color + 1) mod s.graph.max_node_color ;
+  f s
+
+let set_color_under_cursor (f : state -> state) (s : state) : state =
+  s.color <- Hashtbl.find_exn s.graph.nodes s.cursor ;
   f s
 
 let reset_color (f : state -> state) (s : state) : state =
@@ -195,7 +201,7 @@ let if_current (f : state -> state) (g : state -> state) (h : state -> state)
   if Hashtbl.find_exn s.graph.nodes s.cursor |> equal s.color then f (g s)
   else f (h s)
 
-let connect_peek (f : state -> state) (s : state) : state =
+let connect (f : state -> state) (s : state) : state =
   let neighbors = cursor_neighbors s in
   ( if Option.is_none neighbors.(s.color) then
     match s.positions with
@@ -205,29 +211,24 @@ let connect_peek (f : state -> state) (s : state) : state =
         () ) ;
   f s
 
-let connect_pop (f : state -> state) (s : state) : state =
-  let neighbors = cursor_neighbors s in
-  let s' =
-    if Option.is_none neighbors.(s.color) then
-      match s.positions with
-      | top :: rest ->
-          add_edge ~dir:s.dir s.graph s.cursor top ;
-          {s with positions= rest}
-      | [] ->
-          s
-    else s
-  in
-  f s'
-
-let push (f : state -> state) (s : state) : state =
+let push_pos (f : state -> state) (s : state) : state =
   f {s with positions= s.cursor :: s.positions}
 
-let pop (f : state -> state) (s : state) : state =
+let pop_pos (f : state -> state) (s : state) : state =
   f {s with positions= List.drop s.positions 1}
+
+let push_color (f : state -> state) (s : state) : state =
+  f {s with colors= s.color :: s.colors}
+
+let pop_color (f : state -> state) (s : state) : state =
+  f {s with colors= List.drop s.colors 1}
 
 let for_i (i : int) (g : state -> state) (f : state -> state) (s : state) :
     state =
   f @@ List.fold (List.range 0 i) ~init:s ~f:(fun s' _ -> g s')
 
-let proc (g : state -> state) (f : state -> state) (s : state) : state =
+let pos_proc (g : state -> state) (f : state -> state) (s : state) : state =
   f {(g {s with positions= []}) with positions= s.positions}
+
+let color_proc (g : state -> state) (f : state -> state) (s : state) : state =
+  f {(g {s with colors= []}) with colors= s.colors}

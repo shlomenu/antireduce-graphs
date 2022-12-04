@@ -7,8 +7,8 @@ open State
 
 type graph_value =
   | Int of int
-  | IntOp2 of (int -> int -> int)
   | IntOp1 of (int -> int)
+  | IntOp2 of (int -> int -> int)
   | State of state
   | Transform of (state -> state)
   | App1 of ((state -> state) -> state -> state)
@@ -43,34 +43,29 @@ let graph_for =
 
 let graph_values ~max_node_color =
   Hashtbl.of_alist_exn (module String)
-  @@ [ ("1", Int 1)
-     ; ("2", Int 2)
-     ; ("3", Int 3)
-     ; ("4", Int 4)
-     ; ("5", Int 5)
-     ; ("6", Int 6)
-     ; ("7", Int 7)
-     ; ("8", Int 8)
-     ; ("9", Int 9)
-     ; ("10", Int 10)
-     ; ("plus", IntOp2 ( + ))
-     ; ("mult", IntOp2 ( * ))
-     ; ("initial", State (initial_state ~max_node_color))
-     ; ("identity", Transform identity)
-     ; ("reorient", App1 reorient)
-     ; ("next", App1 next)
-     ; ("reset_color", App1 reset_color)
-     ; ("reset_cursor", App1 reset_cursor)
-     ; ("traverse", App1 traverse)
-     ; ("add", App1 add)
-     ; ("if_traversable", App3 if_traversable)
-     ; ("if_current", App3 if_current)
-     ; ("connect_peek", App1 connect_peek)
-     ; ("connect_pop", App1 connect_pop)
-     ; ("push", App1 push)
-     ; ("pop", App1 pop)
-     ; ("for_i", For for_i)
-     ; ("proc", App2 proc) ]
+  @@ ( List.range 0 @@ max 11 max_node_color
+     |> List.map ~f:(fun i -> (string_of_int i, Int i)) )
+  @ [ ("plus", IntOp2 ( + ))
+    ; ("mult", IntOp2 ( * ))
+    ; ("initial", State (initial_state ~max_node_color))
+    ; ("identity", Transform identity)
+    ; ("reorient", App1 reorient)
+    ; ("next", App1 next)
+    ; ("set_color_under_cursor", App1 set_color_under_cursor)
+    ; ("reset_color", App1 reset_color)
+    ; ("reset_cursor", App1 reset_cursor)
+    ; ("traverse", App1 traverse)
+    ; ("add", App1 add)
+    ; ("if_traversable", App3 if_traversable)
+    ; ("if_current", App3 if_current)
+    ; ("connect", App1 connect)
+    ; ("push_pos", App1 push_pos)
+    ; ("pop_pos", App1 pop_pos)
+    ; ("push_color", App1 push_color)
+    ; ("pop_color", App1 pop_color)
+    ; ("for_i", For for_i)
+    ; ("pos_proc", App2 pos_proc)
+    ; ("color_proc", App2 color_proc) ]
 
 let lookup ~max_node_color = Hashtbl.find_exn @@ graph_values ~max_node_color
 
@@ -109,41 +104,46 @@ let eval gv_1 gv_2 =
   | For _, _ ->
       failwith "Graphs.evaluator: apply of for_i to non-integer"
 
-let initial_primitives_types_alist =
-  [ ("1", graph_int)
-  ; ("2", graph_int)
-  ; ("for_i", graph_for)
-  ; ("add", graph_app1)
-  ; ("next", graph_app1)
-  ; ("traverse", graph_app1)
-  ; ("proc", graph_app2)
-  ; ("plus", graph_int_binop)
-  ; ("mult", graph_int_binop)
-  ; ("identity", graph_transform)
-  ; ("reorient", graph_app1)
-  ; ("reset_color", graph_app1)
-  ; ("reset_cursor", graph_app1)
-  ; ("if_traversable", graph_app3)
-  ; ("if_current", graph_app3)
-  ; ("connect_peek", graph_app1)
-  ; ("connect_pop", graph_app1)
-  ; ("push", graph_app1)
-  ; ("pop", graph_app1) ]
+let initial_primitives_types_alist ~max_node_color =
+  ( List.range 0 @@ max 10 max_node_color
+  |> List.map ~f:(fun i -> (string_of_int i, graph_int)) )
+  @ [ ("plus", graph_int_binop)
+    ; ("mult", graph_int_binop)
+    ; ("identity", graph_transform)
+    ; ("reorient", graph_app1)
+    ; ("next", graph_app1)
+    ; ("set_color_under_cursor", graph_app1)
+    ; ("reset_color", graph_app1)
+    ; ("reset_cursor", graph_app1)
+    ; ("traverse", graph_app1)
+    ; ("add", graph_app1)
+    ; ("if_traversable", graph_app3)
+    ; ("if_current", graph_app3)
+    ; ("connect", graph_app1)
+    ; ("push_pos", graph_app1)
+    ; ("pop_pos", graph_app1)
+    ; ("push_color", graph_app1)
+    ; ("pop_color", graph_app1)
+    ; ("for_i", graph_for)
+    ; ("pos_proc", graph_app2)
+    ; ("color_proc", graph_app2) ]
 
-let initial_primitives_list =
-  List.map initial_primitives_types_alist ~f:(fun (name, ty) ->
-      Primitive {name; ty} )
+let initial_primitives_list ~max_node_color =
+  initial_primitives_types_alist ~max_node_color
+  |> List.map ~f:(fun (name, ty) -> Primitive {name; ty})
 
-let initial_primitives =
+let initial_primitives ~max_node_color =
   Hashtbl.of_alist_exn (module String)
-  @@ List.map initial_primitives_types_alist ~f:(fun (name, ty) ->
-         (name, Primitive {name; ty}) )
+  @@ List.map ~f:(fun (name, ty) -> (name, Primitive {name; ty}))
+  @@ initial_primitives_types_alist ~max_node_color
 
-let initial_dsl = dsl_of_primitives graph_state initial_primitives_list
+let initial_dsl ~max_node_color =
+  dsl_of_primitives graph_state @@ initial_primitives_list ~max_node_color
 
-let initial_primitive_entries =
+let initial_primitive_entries ~max_node_color =
   Hashtbl.of_alist_exn (module String)
-  @@ List.map initial_dsl.library ~f:(fun ent -> (ent.name, ent))
+  @@ List.map (initial_dsl ~max_node_color).library ~f:(fun ent ->
+         (ent.name, ent) )
 
 let rec reduce_identity identity_type = function
   | Abstraction b -> (

@@ -8,11 +8,13 @@ let name_of_domain = "graph"
 
 let prededup_frontier_entry_to_traversal c = traversal c.output
 
-let parse_program = Parser.parse_program initial_primitives
+let parse_program ~max_node_color =
+  Parser.parse_program @@ initial_primitives ~max_node_color
 
-let parse_program_exn = Fn.compose Util.value_exn parse_program
+let parse_program_exn ~max_node_color =
+  Fn.compose Util.value_exn (parse_program ~max_node_color)
 
-let find_duplicates dir =
+let find_duplicates ~max_node_color dir =
   let priority c_1 c_2 = compare c_1.program_size c_2.program_size in
   Caml.Sys.readdir dir
   |> Array.filter_map ~f:(fun filename ->
@@ -23,7 +25,7 @@ let find_duplicates dir =
                initial_state_of_graph @@ graph_of_yojson @@ SU.member "output" j
            ; program_size=
                (let original = SU.to_string @@ SU.member "original" j in
-                match parse_program original with
+                match parse_program ~max_node_color original with
                 | Some p ->
                     size_of_program p
                 | None ->
@@ -43,8 +45,9 @@ let execute_and_save ~timeout ?(attempts = 1) ~dsl j =
     Abstraction
       (Apply
          ( Apply
-             ( Hashtbl.find_exn initial_primitives "add"
-             , Hashtbl.find_exn initial_primitives "identity" )
+             ( Hashtbl.find_exn (initial_primitives ~max_node_color) "add"
+             , Hashtbl.find_exn (initial_primitives ~max_node_color) "identity"
+             )
          , Index 0 ) )
   in
   let default_output () = (add Fn.id @@ initial_state ~max_node_color).graph in
