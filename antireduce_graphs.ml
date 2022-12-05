@@ -8,13 +8,18 @@ let name_of_domain = "graph"
 
 let prededup_frontier_entry_to_traversal c = traversal c.output
 
-let parse_program ~max_color =
+let parse_program' ~max_color =
   Parser.parse_program @@ initial_primitives ~max_color
 
-let parse_program_exn ~max_color =
-  Fn.compose Util.value_exn (parse_program ~max_color)
+let parse_program j =
+  parse_program' ~max_color:(SU.to_int @@ SU.member "max_color" j)
 
-let find_duplicates ~max_color dir =
+let parse_program_exn' ~max_color =
+  Fn.compose Util.value_exn (parse_program' ~max_color)
+
+let parse_program_exn j = Fn.compose Util.value_exn (parse_program j)
+
+let find_duplicates' ~max_color dir =
   let priority c_1 c_2 = compare c_1.program_size c_2.program_size in
   Caml.Sys.readdir dir
   |> Array.filter_map ~f:(fun filename ->
@@ -25,7 +30,7 @@ let find_duplicates ~max_color dir =
                initial_state_of_graph @@ graph_of_yojson @@ SU.member "output" j
            ; program_size=
                (let original = SU.to_string @@ SU.member "original" j in
-                match parse_program ~max_color original with
+                match parse_program' ~max_color original with
                 | Some p ->
                     size_of_program p
                 | None ->
@@ -38,6 +43,9 @@ let find_duplicates ~max_color dir =
   |> verbose_duplicates
        (module Traversal)
        prededup_frontier_entry_to_traversal priority
+
+let find_duplicates dir j =
+  find_duplicates' ~max_color:(SU.to_int @@ SU.member "max_color" j) dir
 
 let execute_and_save ~timeout ?(attempts = 1) ~dsl j =
   let max_color = SU.to_int @@ SU.member "max_color" j in
