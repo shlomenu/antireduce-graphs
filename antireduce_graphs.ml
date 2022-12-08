@@ -65,4 +65,8 @@ let execute_and_save ~timeout ?(attempts = 1) ~dsl j =
   in
   execute_and_save ~timeout ~attempts ~dsl ~default_program ~default_output
     ~evaluate:(evaluate ~max_color) ~postprocess_output
-    ~yojson_of_output:yojson_of_graph ~request:graph_transform j
+    ~yojson_of_output:yojson_of_graph
+    ~yojson_key_of_output:
+      ( Fn.compose Traversal.yojson_of_t
+      @@ Fn.compose traversal initial_state_of_graph )
+    ~request:graph_transform j

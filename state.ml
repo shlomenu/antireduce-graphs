@@ -119,7 +119,12 @@ let cursor_neighbors s =
   | Backward ->
       Hashtbl.find_exn s.graph.backward_edges s.cursor
 
-let traversal s =
+module Traversal = struct
+  type t = Util.IntPair.t option list
+  [@@deriving equal, compare, sexp_of, hash, yojson]
+end
+
+let traversal s : Traversal.t =
   let visited = Hashtbl.create (module Int) in
   Hashtbl.add_exn visited ~key:0 ~data:0 ;
   let rec go n_visited raw =
@@ -146,10 +151,6 @@ let traversal s =
   s.color <- 0 ;
   s.dir <- Backward ;
   List.rev @@ snd @@ go n_visited traversal
-
-module Traversal = struct
-  type t = Util.IntPair.t option list [@@deriving equal, compare, sexp_of, hash]
-end
 
 let equal_state s_1 s_2 = Traversal.equal (traversal s_1) (traversal s_2)
 
