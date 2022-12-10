@@ -193,6 +193,6 @@ let evaluate ~max_color ~timeout ~attempts p =
                @@ Format.sprintf
                     "evaluate: graph program did not output a state: %s"
                     (string_of_program p)
-         with _ ->
+         with e ->
            Format.eprintf "ERROR: %s\n" @@ string_of_program p ;
-           None )
+           raise e )
