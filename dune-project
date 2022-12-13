@@ -1,4 +1,4 @@
-(lang dune 3.4)
+(lang dune 3.6)
 
 (name antireduce_graphs)
 
@@ -11,7 +11,14 @@
   "Simple undirected node-labelled graph construction primitives for antireduce integration")
  (description
   "A companion package to antireduce implementing one domain of primitives for use in polymorphic lambda calculus representations")
- (depends core antireduce ppx_jane ppx_sexp_conv ppx_yojson_conv)
+ (depends
+  core
+  antireduce
+  ppx_jane
+  ppx_sexp_conv
+  ppx_compare
+  ppx_hash
+  ppx_yojson_conv)
  (license "MIT")
  (authors "Eli Whitehouse <eliw55@gmail.com>")
  (maintainers "Eli Whitehouse <eliw55@gmail.com>")
