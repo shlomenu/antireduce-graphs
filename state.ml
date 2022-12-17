@@ -233,3 +233,9 @@ let pos_proc (g : state -> state) (f : state -> state) (s : state) : state =
 
 let color_proc (g : state -> state) (f : state -> state) (s : state) : state =
   f {(g {s with colors= []}) with colors= s.colors}
+
+let last_found : graph option ref = ref None
+
+let save (s : state) : state =
+  last_found := Some s.graph ;
+  s
