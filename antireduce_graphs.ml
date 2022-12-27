@@ -7,7 +7,7 @@ include Eval
 let name_of_domain = "graph"
 
 let parse_program' ~max_color =
-  Parser.parse_program @@ initial_primitives ~max_color
+  Parser.parse_program @@ all_primitives ~max_color
 
 let parse_program j =
   parse_program' ~max_color:(SU.to_int @@ SU.member "max_color" j)

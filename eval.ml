@@ -266,38 +266,59 @@ let graph_app3 =
 let graph_for =
   graph_int @> graph_transform @> graph_transform @> graph_state @> graph_state
 
+let initial_nonintegral_primitives_types_alist =
+  [ ("plus", graph_int_binop)
+  ; ("mult", graph_int_binop)
+  ; ("identity", graph_transform)
+  ; ("reorient", graph_app1)
+  ; ("next", graph_app1)
+  ; ("set_color_under_cursor", graph_app1)
+  ; ("reset_color", graph_app1)
+  ; ("reset_cursor", graph_app1)
+  ; ("traverse", graph_app1)
+  ; ("add", graph_app1)
+  ; ("if_traversable", graph_app3)
+  ; ("if_current", graph_app3)
+  ; ("connect", graph_app1)
+  ; ("push_pos", graph_app1)
+  ; ("pop_pos", graph_app1)
+  ; ("push_color", graph_app1)
+  ; ("pop_color", graph_app1)
+  ; ("for_i", graph_for)
+  ; ("pos_proc", graph_app2)
+  ; ("color_proc", graph_app2) ]
+
+let all_nonintegral_primitives_types_alist =
+  initial_nonintegral_primitives_types_alist
+  @ [("initial", graph_state); ("save", graph_transform)]
+
 let initial_primitives_types_alist ~max_color =
   ( List.range 0 @@ max 10 max_color
   |> List.map ~f:(fun i -> (string_of_int i, graph_int)) )
-  @ [ ("plus", graph_int_binop)
-    ; ("mult", graph_int_binop)
-    ; ("identity", graph_transform)
-    ; ("reorient", graph_app1)
-    ; ("next", graph_app1)
-    ; ("set_color_under_cursor", graph_app1)
-    ; ("reset_color", graph_app1)
-    ; ("reset_cursor", graph_app1)
-    ; ("traverse", graph_app1)
-    ; ("add", graph_app1)
-    ; ("if_traversable", graph_app3)
-    ; ("if_current", graph_app3)
-    ; ("connect", graph_app1)
-    ; ("push_pos", graph_app1)
-    ; ("pop_pos", graph_app1)
-    ; ("push_color", graph_app1)
-    ; ("pop_color", graph_app1)
-    ; ("for_i", graph_for)
-    ; ("pos_proc", graph_app2)
-    ; ("color_proc", graph_app2) ]
+  @ initial_nonintegral_primitives_types_alist
+
+let all_primitives_types_alist ~max_color =
+  ( List.range 0 @@ max 10 max_color
+  |> List.map ~f:(fun i -> (string_of_int i, graph_int)) )
+  @ all_nonintegral_primitives_types_alist
 
 let initial_primitives_list ~max_color =
   initial_primitives_types_alist ~max_color
+  |> List.map ~f:(fun (name, ty) -> Primitive {name; ty})
+
+let all_primitives_list ~max_color =
+  all_primitives_types_alist ~max_color
   |> List.map ~f:(fun (name, ty) -> Primitive {name; ty})
 
 let initial_primitives ~max_color =
   Hashtbl.of_alist_exn (module String)
   @@ List.map ~f:(fun (name, ty) -> (name, Primitive {name; ty}))
   @@ initial_primitives_types_alist ~max_color
+
+let all_primitives ~max_color =
+  Hashtbl.of_alist_exn (module String)
+  @@ List.map ~f:(fun (name, ty) -> (name, Primitive {name; ty}))
+  @@ all_primitives_types_alist ~max_color
 
 let initial_dsl ~max_color =
   dsl_of_primitives graph_state @@ initial_primitives_list ~max_color
