@@ -90,8 +90,6 @@ let rec typecheck : type c. c context -> expr -> c exists_texpr =
       Exists (TIntOp2 ( + ), TArrow (Integer, TArrow (Integer, Integer)))
   | Op "mult" ->
       Exists (TIntOp2 ( * ), TArrow (Integer, TArrow (Integer, Integer)))
-  | Op "identity" ->
-      Exists (TStateOp identity, TArrow (State, State))
   | Op "reorient" ->
       Exists
         ( TStateOpComp1 reorient
@@ -269,7 +267,6 @@ let graph_for =
 let initial_nonintegral_primitives_types_alist =
   [ ("plus", graph_int_binop)
   ; ("mult", graph_int_binop)
-  ; ("identity", graph_transform)
   ; ("reorient", graph_app1)
   ; ("next", graph_app1)
   ; ("set_color_under_cursor", graph_app1)

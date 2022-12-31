@@ -157,8 +157,6 @@ let equal_state s_1 s_2 = Traversal.equal (traversal s_1) (traversal s_2)
 let initial_state_of_graph graph =
   {graph; cursor= 0; color= 0; dir= Forward; positions= []; colors= []}
 
-let identity : state -> state = Fn.id
-
 let reorient (f : state -> state) (s : state) : state =
   let reverse = function Forward -> Backward | Backward -> Forward in
   s.dir <- reverse s.dir ;
