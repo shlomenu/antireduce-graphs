@@ -293,12 +293,12 @@ let all_nonintegral_primitives_types_alist =
   @ [("initial", graph_state); ("save", graph_transform)]
 
 let initial_primitives_types_alist ~max_color =
-  ( List.range 0 @@ max 10 max_color
+  ( List.range ~stop:`inclusive 0 @@ max 10 max_color
   |> List.map ~f:(fun i -> (string_of_int i, graph_int)) )
   @ initial_nonintegral_primitives_types_alist
 
 let all_primitives_types_alist ~max_color =
-  ( List.range 0 @@ max 10 max_color
+  ( List.range ~stop:`inclusive 0 @@ max 10 max_color
   |> List.map ~f:(fun i -> (string_of_int i, graph_int)) )
   @ all_nonintegral_primitives_types_alist
 
