@@ -28,9 +28,9 @@ let explore ~exploration_timeout ~eval_timeout ~attempts ~dsl
   let retrieve_result () = Util.value_exn !last_found in
   explore ~exploration_timeout ~eval_timeout ~attempts ~dsl ~representations_dir
     ~size ~apply_to_state ~evaluate:(evaluate ~max_color) ~retrieve_result
-    ~nontrivial:(fun g -> Hashtbl.length g.nodes > 1)
+    ~nontrivial:(fun g -> Map.length g.nodes > 1)
     ~parse:(parse_program_exn' ~max_color)
     ~request:graph_transform ~yojson_of_output:yojson_of_graph
-    ~key_of_output:(Fn.compose traversal initial_state_of_graph)
-    ~yojson_of_key:Traversal.yojson_of_t ~key_of_yojson:Traversal.t_of_yojson
+    ~key_of_output:traversal ~yojson_of_key:Traversal.yojson_of_t
+    ~key_of_yojson:Traversal.t_of_yojson
     (module Traversal)

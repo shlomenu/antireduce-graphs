@@ -65,6 +65,23 @@ type (_, _) texpr =
            -> state
            -> state )
          texpr
+  | TStateOpComp5 :
+      (   (state -> state)
+       -> (state -> state)
+       -> (state -> state)
+       -> (state -> state)
+       -> (state -> state)
+       -> state
+       -> state )
+      -> ( 'tc
+         ,    (state -> state)
+           -> (state -> state)
+           -> (state -> state)
+           -> (state -> state)
+           -> (state -> state)
+           -> state
+           -> state )
+         texpr
   | TFor :
       (int -> (state -> state) -> (state -> state) -> state -> state)
       -> ( 'tc
@@ -176,6 +193,88 @@ let rec typecheck : type c. c context -> expr -> c exists_texpr =
             , TArrow (TArrow (State, State), TArrow (State, State)) ) )
   | Op "save" ->
       Exists (TStateOp save, TArrow (State, State))
+  | Op "switch_direction" ->
+      Exists
+        ( TStateOpComp1 switch_direction
+        , TArrow (TArrow (State, State), TArrow (State, State)) )
+  | Op "select_next" ->
+      Exists
+        ( TStateOpComp1 select_next
+        , TArrow (TArrow (State, State), TArrow (State, State)) )
+  | Op "select_prev" ->
+      Exists
+        ( TStateOpComp1 select_prev
+        , TArrow (TArrow (State, State), TArrow (State, State)) )
+  | Op "read_color" ->
+      Exists
+        ( TStateOpComp1 read_color
+        , TArrow (TArrow (State, State), TArrow (State, State)) )
+  | Op "color_func" ->
+      Exists
+        ( TStateOpComp2 color_func
+        , TArrow
+            ( TArrow (State, State)
+            , TArrow (TArrow (State, State), TArrow (State, State)) ) )
+  | Op "loc_func" ->
+      Exists
+        ( TStateOpComp2 loc_func
+        , TArrow
+            ( TArrow (State, State)
+            , TArrow (TArrow (State, State), TArrow (State, State)) ) )
+  | Op "dir_func" ->
+      Exists
+        ( TStateOpComp2 dir_func
+        , TArrow
+            ( TArrow (State, State)
+            , TArrow (TArrow (State, State), TArrow (State, State)) ) )
+  | Op "func" ->
+      Exists
+        ( TStateOpComp2 func
+        , TArrow
+            ( TArrow (State, State)
+            , TArrow (TArrow (State, State), TArrow (State, State)) ) )
+  | Op "if_colors_equal" ->
+      Exists
+        ( TStateOpComp5 if_colors_equal
+        , TArrow
+            ( TArrow (State, State)
+            , TArrow
+                ( TArrow (State, State)
+                , TArrow
+                    ( TArrow (State, State)
+                    , TArrow
+                        ( TArrow (State, State)
+                        , TArrow (TArrow (State, State), TArrow (State, State))
+                        ) ) ) ) )
+  | Op "if_locs_equal" ->
+      Exists
+        ( TStateOpComp5 if_locs_equal
+        , TArrow
+            ( TArrow (State, State)
+            , TArrow
+                ( TArrow (State, State)
+                , TArrow
+                    ( TArrow (State, State)
+                    , TArrow
+                        ( TArrow (State, State)
+                        , TArrow (TArrow (State, State), TArrow (State, State))
+                        ) ) ) ) )
+  | Op "move_selected" ->
+      Exists
+        ( TStateOpComp1 move_selected
+        , TArrow (TArrow (State, State), TArrow (State, State)) )
+  | Op "add_nb" ->
+      Exists
+        ( TStateOpComp1 add_nb
+        , TArrow (TArrow (State, State), TArrow (State, State)) )
+  | Op "add_conn" ->
+      Exists
+        ( TStateOpComp3 add_conn
+        , TArrow
+            ( TArrow (State, State)
+            , TArrow
+                ( TArrow (State, State)
+                , TArrow (TArrow (State, State), TArrow (State, State)) ) ) )
   | Op unknown_name ->
       failwith @@ Format.sprintf "unrecognized primitive: %s" unknown_name
   | Abstraction (parameter_ty, b) -> (
@@ -226,6 +325,8 @@ let rec eval : type c t. c -> (c, t) texpr -> t =
       f
   | TStateOpComp3 f ->
       f
+  | TStateOpComp5 f ->
+      f
   | TFor f ->
       f
   | TVarZero ->
@@ -261,10 +362,14 @@ let graph_app3 =
   graph_transform @> graph_transform @> graph_transform @> graph_state
   @> graph_state
 
+let graph_app5 =
+  graph_transform @> graph_transform @> graph_transform @> graph_transform
+  @> graph_transform @> graph_state @> graph_state
+
 let graph_for =
   graph_int @> graph_transform @> graph_transform @> graph_state @> graph_state
 
-let initial_nonintegral_primitives_types_alist =
+let initial_nonintegral_v1_primitives_types_alist =
   [ ("plus", graph_int_binop)
   ; ("mult", graph_int_binop)
   ; ("reorient", graph_app1)
@@ -285,19 +390,43 @@ let initial_nonintegral_primitives_types_alist =
   ; ("pos_proc", graph_app2)
   ; ("color_proc", graph_app2) ]
 
-let all_nonintegral_primitives_types_alist =
-  initial_nonintegral_primitives_types_alist
+let all_nonintegral_v1_primitives_types_alist =
+  initial_nonintegral_v1_primitives_types_alist
   @ [("initial", graph_state); ("save", graph_transform)]
 
-let initial_primitives_types_alist ~max_color =
+let initial_v1_primitives_types_alist ~max_color =
   ( List.range ~stop:`inclusive 0 @@ max 10 max_color
   |> List.map ~f:(fun i -> (string_of_int i, graph_int)) )
-  @ initial_nonintegral_primitives_types_alist
+  @ initial_nonintegral_v1_primitives_types_alist
 
-let all_primitives_types_alist ~max_color =
+let initial_v2_primitives_types_alist =
+  [ ("switch_direction", graph_app1)
+  ; ("select_next", graph_app1)
+  ; ("select_prev", graph_app1)
+  ; ("read_color", graph_app1)
+  ; ("color_func", graph_app2)
+  ; ("loc_func", graph_app2)
+  ; ("dir_func", graph_app2)
+  ; ("func", graph_app2)
+  ; ("if_colors_equal", graph_app5)
+  ; ("if_locs_equal", graph_app5)
+  ; ("move_selected", graph_app1)
+  ; ("add_nb", graph_app1)
+  ; ("add_conn", graph_app3) ]
+
+let initial_primitives_types_alist ~max_color:_ =
+  initial_v2_primitives_types_alist
+
+let all_v1_primitives_types_alist ~max_color =
   ( List.range ~stop:`inclusive 0 @@ max 10 max_color
   |> List.map ~f:(fun i -> (string_of_int i, graph_int)) )
-  @ all_nonintegral_primitives_types_alist
+  @ all_nonintegral_v1_primitives_types_alist
+
+let all_v2_primitives_types_alist =
+  initial_v2_primitives_types_alist
+  @ [("initial", graph_state); ("save", graph_transform)]
+
+let all_primitives_types_alist ~max_color:_ = all_v2_primitives_types_alist
 
 let initial_primitives_list ~max_color =
   initial_primitives_types_alist ~max_color

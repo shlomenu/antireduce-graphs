@@ -5,16 +5,16 @@ open Util.Yojson_util
 type direction = Forward | Backward [@@deriving yojson]
 
 type graph =
-  { nodes: (int, int) Hashtbl.t
-  ; forward_edges: (int, int option Array.t) Hashtbl.t
-  ; backward_edges: (int, int option Array.t) Hashtbl.t
+  { nodes: (Int.t, Int.t, Int.comparator_witness) Map.t
+  ; forward_edges:
+      (Util.OrdIntPair.t, Int.t, Util.OrdIntPair.comparator_witness) Map.t
+  ; backward_edges:
+      (Util.OrdIntPair.t, Int.t, Util.OrdIntPair.comparator_witness) Map.t
   ; max_color: int }
 
-let yojson_of_nodes = yojson_of_hashtbl yojson_of_int yojson_of_int
+let yojson_of_nodes = yojson_of_map yojson_of_int yojson_of_int
 
-let yojson_of_edges =
-  yojson_of_hashtbl yojson_of_int
-    (yojson_of_array (yojson_of_option yojson_of_int))
+let yojson_of_edges = yojson_of_map Util.OrdIntPair.yojson_of_t yojson_of_int
 
 let yojson_of_graph g =
   `Assoc
@@ -23,13 +23,12 @@ let yojson_of_graph g =
     ; ("backward_edges", yojson_of_edges g.backward_edges)
     ; ("max_color", `Int g.max_color) ]
 
-let nodes_of_yojson = hashtbl_of_yojson (module Int) int_of_yojson int_of_yojson
+let nodes_of_yojson = map_of_yojson (module Int) int_of_yojson int_of_yojson
 
 let edges_of_yojson =
-  hashtbl_of_yojson
-    (module Int)
-    int_of_yojson
-    (array_of_yojson (option_of_yojson int_of_yojson))
+  map_of_yojson
+    (module Util.OrdIntPair)
+    Util.OrdIntPair.t_of_yojson int_of_yojson
 
 let graph_of_yojson = function
   | `Assoc
@@ -46,172 +45,163 @@ let graph_of_yojson = function
 
 let add_node g color =
   if color < 0 || color >= g.max_color then
-    let msg =
-      Printf.sprintf "add_node: color (%d) is not below the threshold (%d)"
-        color g.max_color
-    in
-    failwith msg
+    failwith
+    @@ Printf.sprintf "add_node: color (%d) is not below the threshold (%d)"
+         color g.max_color
   else
-    let node = Hashtbl.length g.nodes in
-    Hashtbl.add_exn g.nodes ~key:node ~data:color ;
-    Hashtbl.add_exn g.forward_edges ~key:node
-      ~data:(Array.create ~len:g.max_color None) ;
-    Hashtbl.add_exn g.backward_edges ~key:node
-      ~data:(Array.create ~len:g.max_color None) ;
-    node
+    let node = Map.length g.nodes in
+    (node, {g with nodes= Map.add_exn g.nodes ~key:node ~data:color})
 
-let add_edge ~dir g cursor neighbor =
-  if cursor <> neighbor then
-    let cursor_edges =
+let add_edge dir g cursor neighbor =
+  if
+    cursor = neighbor
+    || (not (Map.mem g.nodes cursor))
+    || not (Map.mem g.nodes neighbor)
+  then g
+  else
+    let cursor_edges, neighbor_edges =
       match dir with
       | Forward ->
-          Hashtbl.find_exn g.forward_edges cursor
+          (g.forward_edges, g.backward_edges)
       | Backward ->
-          Hashtbl.find_exn g.backward_edges cursor
+          (g.backward_edges, g.forward_edges)
     in
-    let neighbor_edges =
-      match dir with
-      | Forward ->
-          Hashtbl.find_exn g.backward_edges neighbor
-      | Backward ->
-          Hashtbl.find_exn g.forward_edges neighbor
-    in
-    let cursor_color = Hashtbl.find_exn g.nodes cursor in
-    let neighbor_color = Hashtbl.find_exn g.nodes neighbor in
+    let cursor_color = Map.find_exn g.nodes cursor in
+    let neighbor_color = Map.find_exn g.nodes neighbor in
     if
-      Option.is_none cursor_edges.(neighbor_color)
-      && Option.is_none neighbor_edges.(cursor_color)
-    then (
-      cursor_edges.(neighbor_color) <- Some neighbor ;
-      neighbor_edges.(cursor_color) <- Some cursor )
+      (Option.is_some @@ Map.find cursor_edges (cursor, neighbor_color))
+      || (Option.is_some @@ Map.find neighbor_edges (neighbor, cursor_color))
+    then g
+    else
+      let cursor_edges =
+        Map.add_exn cursor_edges ~key:(cursor, neighbor_color) ~data:neighbor
+      in
+      let neighbor_edges =
+        Map.add_exn neighbor_edges ~key:(neighbor, cursor_color) ~data:cursor
+      in
+      let forward_edges, backward_edges =
+        match dir with
+        | Forward ->
+            (cursor_edges, neighbor_edges)
+        | Backward ->
+            (neighbor_edges, cursor_edges)
+      in
+      {g with forward_edges; backward_edges}
 
 let initial_graph ~max_color =
-  let g =
-    { nodes= Hashtbl.create (module Int)
-    ; forward_edges= Hashtbl.create (module Int)
-    ; backward_edges= Hashtbl.create (module Int)
-    ; max_color }
-  in
-  ignore (add_node g 0 : int) ;
-  g
+  snd
+  @@ Fn.flip add_node 0
+       { nodes= Map.empty (module Int)
+       ; forward_edges= Map.empty (module Util.OrdIntPair)
+       ; backward_edges= Map.empty (module Util.OrdIntPair)
+       ; max_color }
 
 type state =
   { graph: graph
-  ; mutable cursor: int
-  ; mutable color: int
-  ; mutable dir: direction
+  ; loc: int
+  ; color: int
+  ; dir: direction
   ; positions: int list
   ; colors: int list }
 [@@deriving yojson]
 
 let initial_state ~max_color =
   { graph= initial_graph ~max_color
-  ; cursor= 0
+  ; loc= 0
   ; color= 0
   ; dir= Forward
   ; positions= []
   ; colors= [] }
 
-let cursor_neighbors s =
+let neighbor_of_color s c =
   match s.dir with
   | Forward ->
-      Hashtbl.find_exn s.graph.forward_edges s.cursor
+      Map.find s.graph.forward_edges (s.loc, c)
   | Backward ->
-      Hashtbl.find_exn s.graph.backward_edges s.cursor
+      Map.find s.graph.backward_edges (s.loc, c)
+
+let selected s = neighbor_of_color s s.color
 
 module Traversal = struct
   type t = Util.IntPair.t option list
   [@@deriving equal, compare, sexp_of, hash, yojson]
 end
 
-let traversal s : Traversal.t =
+let traversal g : Traversal.t =
   let visited = Hashtbl.create (module Int) in
   Hashtbl.add_exn visited ~key:0 ~data:0 ;
-  let rec go n_visited raw =
-    cursor_neighbors s
-    |> Array.mapi ~f:(fun color nb -> (color, nb))
-    |> Array.fold ~init:(n_visited, raw) ~f:(fun (nv, r) (color, nb) ->
+  let rec go dir cursor n_visited traversal =
+    List.range 0 g.max_color
+    |> List.map ~f:(fun color ->
+           ( color
+           , match dir with
+             | Forward ->
+                 Map.find g.forward_edges (cursor, color)
+             | Backward ->
+                 Map.find g.backward_edges (cursor, color) ) )
+    |> List.fold ~init:(n_visited, traversal) ~f:(fun (n, t) (color, nb) ->
            match nb with
-           | Some node_id ->
-               if not @@ Hashtbl.mem visited node_id then (
-                 s.cursor <- node_id ;
-                 Hashtbl.add_exn visited ~key:node_id ~data:nv ;
-                 go (nv + 1) (Some (nv, color) :: r) )
+           | Some node ->
+               if not @@ Hashtbl.mem visited node then (
+                 Hashtbl.add_exn visited ~key:node ~data:n ;
+                 go dir node (n + 1) (Some (n, color) :: t) )
                else
-                 let nv_prev = Hashtbl.find_exn visited node_id in
-                 (nv, Some (nv - nv_prev, color) :: r)
+                 let n_prev = Hashtbl.find_exn visited node in
+                 (n, Some (n - n_prev, color) :: t)
            | None ->
-               (nv, None :: r) )
+               (n, None :: t) )
   in
-  s.cursor <- 0 ;
-  s.color <- 0 ;
-  s.dir <- Forward ;
-  let n_visited, traversal = go 1 [] in
-  s.cursor <- 0 ;
-  s.color <- 0 ;
-  s.dir <- Backward ;
-  List.rev @@ snd @@ go n_visited traversal
+  let n_visited, traversal = go Forward 0 1 [] in
+  List.rev @@ snd @@ go Backward 0 n_visited traversal
 
 let equal_state s_1 s_2 = Traversal.equal (traversal s_1) (traversal s_2)
 
 let initial_state_of_graph graph =
-  {graph; cursor= 0; color= 0; dir= Forward; positions= []; colors= []}
+  {graph; loc= 0; color= 0; dir= Forward; positions= []; colors= []}
 
 let reorient (f : state -> state) (s : state) : state =
-  let reverse = function Forward -> Backward | Backward -> Forward in
-  s.dir <- reverse s.dir ;
-  f s
+  let opposite = function Forward -> Backward | Backward -> Forward in
+  f {s with dir= opposite s.dir}
 
 let next (f : state -> state) (s : state) : state =
-  s.color <- (s.color + 1) mod s.graph.max_color ;
-  f s
+  f {s with color= (s.color + 1) mod s.graph.max_color}
 
 let set_color_under_cursor (f : state -> state) (s : state) : state =
-  s.color <- Hashtbl.find_exn s.graph.nodes s.cursor ;
-  f s
+  f {s with color= Map.find_exn s.graph.nodes s.loc}
 
-let reset_color (f : state -> state) (s : state) : state =
-  s.color <- 0 ;
-  f s
+let reset_color (f : state -> state) (s : state) : state = f {s with color= 0}
 
-let reset_cursor (f : state -> state) (s : state) : state =
-  s.cursor <- 0 ;
-  f s
+let reset_cursor (f : state -> state) (s : state) : state = f {s with loc= 0}
 
 let traverse (f : state -> state) (s : state) : state =
-  let neighbors = cursor_neighbors s in
-  if Option.is_some neighbors.(s.color) then
-    s.cursor <- Util.value_exn neighbors.(s.color) ;
-  f s
+  f {s with loc= Option.value_map (selected s) ~default:s.loc ~f:Fn.id}
 
 let add (f : state -> state) (s : state) =
-  let neighbors = cursor_neighbors s in
-  if Option.is_none neighbors.(s.color) then
-    add_edge ~dir:s.dir s.graph s.cursor @@ add_node s.graph s.color ;
-  f s
+  f
+    { s with
+      graph=
+        ( if Option.is_none (selected s) then
+          let nb, g' = add_node s.graph s.color in
+          add_edge s.dir g' s.loc nb
+        else s.graph ) }
 
 let if_traversable (f : state -> state) (g : state -> state)
     (h : state -> state) (s : state) : state =
-  let neighbors = cursor_neighbors s in
-  if Option.is_some neighbors.(s.color) then f (g s) else f (h s)
+  if Option.is_some @@ selected s then f (g s) else f (h s)
 
 let if_current (f : state -> state) (g : state -> state) (h : state -> state)
     (s : state) : state =
-  if Hashtbl.find_exn s.graph.nodes s.cursor |> equal s.color then f (g s)
-  else f (h s)
+  if equal s.color @@ Map.find_exn s.graph.nodes s.loc then f (g s) else f (h s)
 
 let connect (f : state -> state) (s : state) : state =
-  let neighbors = cursor_neighbors s in
-  ( if Option.is_none neighbors.(s.color) then
-    match s.positions with
-    | top :: _ ->
-        add_edge ~dir:s.dir s.graph s.cursor top
-    | [] ->
-        () ) ;
-  f s
+  f
+    { s with
+      graph=
+        Option.value_map ~default:s.graph ~f:(add_edge s.dir s.graph s.loc)
+        @@ List.hd s.positions }
 
 let push_pos (f : state -> state) (s : state) : state =
-  f {s with positions= s.cursor :: s.positions}
+  f {s with positions= s.loc :: s.positions}
 
 let pop_pos (f : state -> state) (s : state) : state =
   f {s with positions= List.drop s.positions 1}
@@ -237,3 +227,49 @@ let last_found : graph option ref = ref None
 let save (s : state) : state =
   last_found := Some s.graph ;
   s
+
+(*
+
+    --- API rewrite, kept separate for backwards compatibility ---
+
+   Some functions are simply renamed and some are obsolesced, but no name
+   clashes are introduced.
+*)
+
+let switch_direction = reorient
+
+let select_next = next
+
+let select_prev (f : state -> state) (s : state) : state =
+  f {s with color= (if s.color = 0 then s.graph.max_color - 1 else s.color - 1)}
+
+let read_color = set_color_under_cursor
+
+let color_func (f : state -> state) (g : state -> state) (s : state) =
+  g {(f s) with color= s.color}
+
+let loc_func (f : state -> state) (g : state -> state) (s : state) : state =
+  g {(f s) with loc= s.loc}
+
+let dir_func (f : state -> state) (g : state -> state) (s : state) : state =
+  g {(f s) with dir= s.dir}
+
+let func (f : state -> state) (g : state -> state) (s : state) : state =
+  g {(f s) with color= s.color; loc= s.loc; dir= s.dir}
+
+let if_colors_equal (f : state -> state) (g : state -> state)
+    (h : state -> state) (k : state -> state) (l : state -> state) (s : state) :
+    state =
+  l (if (f s).color = (g s).color then h s else k s)
+
+let if_locs_equal (f : state -> state) (g : state -> state) (h : state -> state)
+    (k : state -> state) (l : state -> state) (s : state) : state =
+  l (if (f s).loc = (g s).loc then h s else k s)
+
+let move_selected = traverse
+
+let add_nb = add
+
+let add_conn (f : state -> state) (g : state -> state) (h : state -> state)
+    (s : state) : state =
+  h {s with graph= add_edge s.dir s.graph (f s).loc (g s).loc}
