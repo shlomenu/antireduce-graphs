@@ -18,8 +18,8 @@ let parse_program_exn' ~max_color =
 let parse_program_exn j = Fn.compose Util.value_exn (parse_program j)
 
 let explore ~exploration_timeout ~eval_timeout ~attempts ~dsl
-    ~representations_dir ~initial_bfs_search_depth ~iterative_deepening
-    ~dfs_search_depth ~n_checkpoints j =
+    ~representations_dir ~lower_bound ~upper_bound ~interval_size
+    ~max_enumerated_bfs ~max_enumerated_dfs j =
   let max_color = SU.to_int @@ SU.member "max_color" j in
   let apply_to_state f =
     Apply
@@ -28,8 +28,8 @@ let explore ~exploration_timeout ~eval_timeout ~attempts ~dsl
   in
   let retrieve_result () = Util.value_exn !last_found in
   explore ~exploration_timeout ~eval_timeout ~attempts ~dsl ~representations_dir
-    ~initial_bfs_search_depth ~iterative_deepening ~dfs_search_depth
-    ~n_checkpoints ~apply_to_state ~evaluate:(evaluate ~max_color)
+    ~lower_bound ~upper_bound ~interval_size ~max_enumerated_bfs
+    ~max_enumerated_dfs ~apply_to_state ~evaluate:(evaluate ~max_color)
     ~retrieve_result
     ~nontrivial:(fun g -> Map.length g.nodes > 1)
     ~parse:(parse_program_exn' ~max_color)
