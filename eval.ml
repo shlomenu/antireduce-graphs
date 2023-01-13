@@ -400,7 +400,8 @@ let initial_v1_primitives_types_alist ~max_color =
   @ initial_nonintegral_v1_primitives_types_alist
 
 let initial_v2_primitives_types_alist =
-  [ ("switch_direction", graph_app1)
+  [ ("identity", graph_transform)
+  ; ("switch_direction", graph_app1)
   ; ("select_next", graph_app1)
   ; ("select_prev", graph_app1)
   ; ("read_color", graph_app1)

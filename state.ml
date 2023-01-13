@@ -236,6 +236,8 @@ let save (s : state) : state =
    clashes are introduced.
 *)
 
+let identity : state -> state = Fn.id
+
 let switch_direction = reorient
 
 let select_next = next
