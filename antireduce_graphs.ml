@@ -9,16 +9,20 @@ module SU = Yojson.Safe.Util
 
 let name_of_domain = "graph"
 
-let parse_program' ~max_color =
-  Parser.parse_program @@ all_primitives ~max_color
+let all_primitives' j =
+  all_primitives ~max_color:(SU.to_int @@ SU.member "max_color" j)
 
-let parse_program j =
-  parse_program' ~max_color:(SU.to_int @@ SU.member "max_color" j)
+let parse_program' ?(primitives = all_primitives) ~max_color =
+  Parser.parse_program @@ primitives ~max_color
 
-let parse_program_exn' ~max_color =
-  Fn.compose Util.value_exn (parse_program' ~max_color)
+let parse_program ?(primitives = all_primitives') j =
+  Parser.parse_program (primitives j)
 
-let parse_program_exn j = Fn.compose Util.value_exn (parse_program j)
+let parse_program_exn' ?(primitives = all_primitives) ~max_color =
+  Fn.compose Util.value_exn (parse_program' ~primitives ~max_color)
+
+let parse_program_exn ?(primitives = all_primitives') j =
+  Fn.compose Util.value_exn (parse_program ~primitives j)
 
 let explore ~exploration_timeout ~eval_timeout ~attempts ~dsl
     ~representations_dir j =

@@ -275,6 +275,8 @@ let rec typecheck : type c. c context -> expr -> c exists_texpr =
             , TArrow
                 ( TArrow (State, State)
                 , TArrow (TArrow (State, State), TArrow (State, State)) ) ) )
+  | Op "identity" ->
+      Exists (TStateOp identity, TArrow (State, State))
   | Op unknown_name ->
       failwith @@ Format.sprintf "unrecognized primitive: %s" unknown_name
   | Abstraction (parameter_ty, b) -> (
@@ -452,7 +454,8 @@ let initial_dsl ~max_color =
 
 let initial_primitive_entries ~max_color =
   Hashtbl.of_alist_exn (module String)
-  @@ List.map (initial_dsl ~max_color).library ~f:(fun ent -> (ent.name, ent))
+  @@ List.map (initial_dsl ~max_color).library ~f:(fun ent ->
+         (ent.dc_name, ent) )
 
 let rec var_of_int i =
   if i > 0 then VarSucc (var_of_int (i - 1))
