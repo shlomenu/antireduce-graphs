@@ -15,14 +15,26 @@ let all_primitives' j =
 let parse_program' ?(primitives = all_primitives) ~max_color =
   Parser.parse_program @@ primitives ~max_color
 
+let parse_stitch_invention' ?(primitives = all_primitives) ~max_color =
+  Parser.parse_stitch_invention @@ primitives ~max_color
+
 let parse_program ?(primitives = all_primitives') j =
   Parser.parse_program (primitives j)
+
+let parse_stitch_invention ?(primitives = all_primitives') j =
+  Parser.parse_stitch_invention (primitives j)
 
 let parse_program_exn' ?(primitives = all_primitives) ~max_color =
   Fn.compose Util.value_exn (parse_program' ~primitives ~max_color)
 
+let parse_stitch_invention_exn' ?(primitives = all_primitives) ~max_color =
+  Fn.compose Util.value_exn (parse_stitch_invention' ~primitives ~max_color)
+
 let parse_program_exn ?(primitives = all_primitives') j =
   Fn.compose Util.value_exn (parse_program ~primitives j)
+
+let parse_stitch_invention_exn ?(primitives = all_primitives') j =
+  Fn.compose Util.value_exn (parse_stitch_invention ~primitives j)
 
 let explore ~exploration_timeout ~eval_timeout ~attempts ~dsl
     ~representations_dir j =
