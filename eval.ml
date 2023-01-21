@@ -1,91 +1,117 @@
 open Core
 open Antireduce
-open Type
-open Program
-open Dsl
-open State
 
-type _ ty =
-  | Integer : int ty
-  | State : state ty
-  | TArrow : 'a ty * 'b ty -> ('a -> 'b) ty
+module Reified_type = struct
+  type _ t =
+    | RInt : int t
+    | RState : State.t t
+    | RArrow : 'a t * 'b t -> ('a -> 'b) t
 
-type (_, _) eq = Refl : ('a, 'a) eq
+  type (_, _) eq = Refl : ('a, 'a) eq
 
-let rec equal_ty : type a b. a ty -> b ty -> (a, b) eq option =
- fun ty_a ty_by ->
-  match (ty_a, ty_by) with
-  | Integer, Integer ->
-      Some Refl
-  | State, State ->
-      Some Refl
-  | TArrow (ty_a', ty_a''), TArrow (ty_b', ty_b'') -> (
-    match (equal_ty ty_a' ty_b', equal_ty ty_a'' ty_b'') with
-    | Some Refl, Some Refl ->
+  let rec equal : type a b. a t -> b t -> (a, b) eq option =
+   fun ty_a ty_by ->
+    match (ty_a, ty_by) with
+    | RInt, RInt ->
         Some Refl
+    | RState, RState ->
+        Some Refl
+    | RArrow (ty_a', ty_a''), RArrow (ty_b', ty_b'') -> (
+      match (equal ty_a' ty_b', equal ty_a'' ty_b'') with
+      | Some Refl, Some Refl ->
+          Some Refl
+      | _ ->
+          None )
     | _ ->
-        None )
-  | _ ->
-      None
+        None
+
+  type any_ty = AnyTy : 'a t -> any_ty
+
+  let rec of_type : Type.t -> any_ty = function
+    | Arrow {left; right; _} -> (
+      match (of_type left, of_type right) with
+      | AnyTy t_1, AnyTy t_2 ->
+          AnyTy (RArrow (t_1, t_2)) )
+    | Id _ ->
+        failwith "type variable in unified generic expression"
+    | Constructor {name; parameters; _} -> (
+        if not (List.is_empty parameters) then
+          failwith "graph domain has only zero arity constructors"
+        else
+          match name with
+          | "int" ->
+              AnyTy RInt
+          | "graph_state" ->
+              AnyTy RState
+          | _ ->
+              failwith "unrecognized constructor" )
+end
 
 type _ context =
   | CEmpty : unit context
-  | CBinding : 'a context * 't ty -> ('a * 't) context
+  | CBinding : 'a context * 't Reified_type.t -> ('a * 't) context
 
 type expr =
-  | Int of int
-  | State of state
+  | EInt of int
+  | EState of State.t
   | Op of string
   | Application of expr * expr
-  | Abstraction : 'a ty * expr -> expr
+  | Abstraction : 'a Reified_type.t * expr -> expr
   | VarZero
   | VarSucc of expr
 
 type (_, _) texpr =
   | TInt : int -> ('tc, int) texpr
-  | TState : state -> ('tc, state) texpr
+  | TState : State.t -> ('tc, State.t) texpr
   | TIntOp2 : (int -> int -> int) -> ('tc, int -> int -> int) texpr
-  | TStateOp : (state -> state) -> ('tc, state -> state) texpr
+  | TStateOp : (State.t -> State.t) -> ('tc, State.t -> State.t) texpr
   | TStateOpComp1 :
-      ((state -> state) -> state -> state)
-      -> ('tc, (state -> state) -> state -> state) texpr
+      ((State.t -> State.t) -> State.t -> State.t)
+      -> ('tc, (State.t -> State.t) -> State.t -> State.t) texpr
   | TStateOpComp2 :
-      ((state -> state) -> (state -> state) -> state -> state)
-      -> ('tc, (state -> state) -> (state -> state) -> state -> state) texpr
-  | TStateOpComp3 :
-      (   (state -> state)
-       -> (state -> state)
-       -> (state -> state)
-       -> state
-       -> state )
+      ((State.t -> State.t) -> (State.t -> State.t) -> State.t -> State.t)
       -> ( 'tc
-         ,    (state -> state)
-           -> (state -> state)
-           -> (state -> state)
-           -> state
-           -> state )
+         , (State.t -> State.t) -> (State.t -> State.t) -> State.t -> State.t
+         )
+         texpr
+  | TStateOpComp3 :
+      (   (State.t -> State.t)
+       -> (State.t -> State.t)
+       -> (State.t -> State.t)
+       -> State.t
+       -> State.t )
+      -> ( 'tc
+         ,    (State.t -> State.t)
+           -> (State.t -> State.t)
+           -> (State.t -> State.t)
+           -> State.t
+           -> State.t )
          texpr
   | TStateOpComp5 :
-      (   (state -> state)
-       -> (state -> state)
-       -> (state -> state)
-       -> (state -> state)
-       -> (state -> state)
-       -> state
-       -> state )
+      (   (State.t -> State.t)
+       -> (State.t -> State.t)
+       -> (State.t -> State.t)
+       -> (State.t -> State.t)
+       -> (State.t -> State.t)
+       -> State.t
+       -> State.t )
       -> ( 'tc
-         ,    (state -> state)
-           -> (state -> state)
-           -> (state -> state)
-           -> (state -> state)
-           -> (state -> state)
-           -> state
-           -> state )
+         ,    (State.t -> State.t)
+           -> (State.t -> State.t)
+           -> (State.t -> State.t)
+           -> (State.t -> State.t)
+           -> (State.t -> State.t)
+           -> State.t
+           -> State.t )
          texpr
   | TFor :
-      (int -> (state -> state) -> (state -> state) -> state -> state)
+      (int -> (State.t -> State.t) -> (State.t -> State.t) -> State.t -> State.t)
       -> ( 'tc
-         , int -> (state -> state) -> (state -> state) -> state -> state )
+         ,    int
+           -> (State.t -> State.t)
+           -> (State.t -> State.t)
+           -> State.t
+           -> State.t )
          texpr
   | TApplication :
       ('tc, 't1 -> 't2) texpr * ('tc, 't1) texpr
@@ -94,201 +120,208 @@ type (_, _) texpr =
   | TVarZero : ('tc * 't, 't) texpr
   | TVarSucc : ('tc, 't1) texpr -> ('tc * 't2, 't1) texpr
 
-type _ exists_texpr = Exists : ('c, 't) texpr * 't ty -> 'c exists_texpr
+type _ exists_texpr =
+  | Exists : ('c, 't) texpr * 't Reified_type.t -> 'c exists_texpr
 
 let rec typecheck : type c. c context -> expr -> c exists_texpr =
  fun cxt e ->
   match e with
-  | Int i ->
-      Exists (TInt i, Integer)
-  | State s ->
-      Exists (TState s, State)
+  | EInt i ->
+      Exists (TInt i, RInt)
+  | EState s ->
+      Exists (TState s, RState)
   | Op "plus" ->
-      Exists (TIntOp2 ( + ), TArrow (Integer, TArrow (Integer, Integer)))
+      Exists (TIntOp2 ( + ), RArrow (RInt, RArrow (RInt, RInt)))
   | Op "mult" ->
-      Exists (TIntOp2 ( * ), TArrow (Integer, TArrow (Integer, Integer)))
+      Exists (TIntOp2 ( * ), RArrow (RInt, RArrow (RInt, RInt)))
   | Op "reorient" ->
       Exists
-        ( TStateOpComp1 reorient
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.reorient
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "next" ->
       Exists
-        ( TStateOpComp1 next
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.next
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "set_color_under_cursor" ->
       Exists
-        ( TStateOpComp1 set_color_under_cursor
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.set_color_under_cursor
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "reset_color" ->
       Exists
-        ( TStateOpComp1 reset_color
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.reset_color
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "reset_cursor" ->
       Exists
-        ( TStateOpComp1 reset_cursor
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.reset_cursor
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "traverse" ->
       Exists
-        ( TStateOpComp1 traverse
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.traverse
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "add" ->
       Exists
-        ( TStateOpComp1 add
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.add
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "if_traversable" ->
       Exists
-        ( TStateOpComp3 if_traversable
-        , TArrow
-            ( TArrow (State, State)
-            , TArrow
-                ( TArrow (State, State)
-                , TArrow (TArrow (State, State), TArrow (State, State)) ) ) )
+        ( TStateOpComp3 Operations.if_traversable
+        , RArrow
+            ( RArrow (RState, RState)
+            , RArrow
+                ( RArrow (RState, RState)
+                , RArrow (RArrow (RState, RState), RArrow (RState, RState)) ) )
+        )
   | Op "if_current" ->
       Exists
-        ( TStateOpComp3 if_current
-        , TArrow
-            ( TArrow (State, State)
-            , TArrow
-                ( TArrow (State, State)
-                , TArrow (TArrow (State, State), TArrow (State, State)) ) ) )
+        ( TStateOpComp3 Operations.if_current
+        , RArrow
+            ( RArrow (RState, RState)
+            , RArrow
+                ( RArrow (RState, RState)
+                , RArrow (RArrow (RState, RState), RArrow (RState, RState)) ) )
+        )
   | Op "connect" ->
       Exists
-        ( TStateOpComp1 connect
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.connect
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "push_pos" ->
       Exists
-        ( TStateOpComp1 push_pos
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.push_pos
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "pop_pos" ->
       Exists
-        ( TStateOpComp1 pop_pos
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.pop_pos
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "push_color" ->
       Exists
-        ( TStateOpComp1 push_color
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.push_color
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "pop_color" ->
       Exists
-        ( TStateOpComp1 pop_color
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.pop_color
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "for_i" ->
       Exists
-        ( TFor for_i
-        , TArrow
-            ( Integer
-            , TArrow
-                ( TArrow (State, State)
-                , TArrow (TArrow (State, State), TArrow (State, State)) ) ) )
+        ( TFor Operations.for_i
+        , RArrow
+            ( RInt
+            , RArrow
+                ( RArrow (RState, RState)
+                , RArrow (RArrow (RState, RState), RArrow (RState, RState)) ) )
+        )
   | Op "pos_proc" ->
       Exists
-        ( TStateOpComp2 pos_proc
-        , TArrow
-            ( TArrow (State, State)
-            , TArrow (TArrow (State, State), TArrow (State, State)) ) )
+        ( TStateOpComp2 Operations.pos_proc
+        , RArrow
+            ( RArrow (RState, RState)
+            , RArrow (RArrow (RState, RState), RArrow (RState, RState)) ) )
   | Op "color_proc" ->
       Exists
-        ( TStateOpComp2 color_proc
-        , TArrow
-            ( TArrow (State, State)
-            , TArrow (TArrow (State, State), TArrow (State, State)) ) )
+        ( TStateOpComp2 Operations.color_proc
+        , RArrow
+            ( RArrow (RState, RState)
+            , RArrow (RArrow (RState, RState), RArrow (RState, RState)) ) )
   | Op "save" ->
-      Exists (TStateOp save, TArrow (State, State))
+      Exists (TStateOp Operations.save, RArrow (RState, RState))
   | Op "switch_direction" ->
       Exists
-        ( TStateOpComp1 switch_direction
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.switch_direction
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "select_next" ->
       Exists
-        ( TStateOpComp1 select_next
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.select_next
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "select_prev" ->
       Exists
-        ( TStateOpComp1 select_prev
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.select_prev
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "read_color" ->
       Exists
-        ( TStateOpComp1 read_color
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.read_color
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "color_func" ->
       Exists
-        ( TStateOpComp2 color_func
-        , TArrow
-            ( TArrow (State, State)
-            , TArrow (TArrow (State, State), TArrow (State, State)) ) )
+        ( TStateOpComp2 Operations.color_func
+        , RArrow
+            ( RArrow (RState, RState)
+            , RArrow (RArrow (RState, RState), RArrow (RState, RState)) ) )
   | Op "loc_func" ->
       Exists
-        ( TStateOpComp2 loc_func
-        , TArrow
-            ( TArrow (State, State)
-            , TArrow (TArrow (State, State), TArrow (State, State)) ) )
+        ( TStateOpComp2 Operations.loc_func
+        , RArrow
+            ( RArrow (RState, RState)
+            , RArrow (RArrow (RState, RState), RArrow (RState, RState)) ) )
   | Op "dir_func" ->
       Exists
-        ( TStateOpComp2 dir_func
-        , TArrow
-            ( TArrow (State, State)
-            , TArrow (TArrow (State, State), TArrow (State, State)) ) )
+        ( TStateOpComp2 Operations.dir_func
+        , RArrow
+            ( RArrow (RState, RState)
+            , RArrow (RArrow (RState, RState), RArrow (RState, RState)) ) )
   | Op "func" ->
       Exists
-        ( TStateOpComp2 func
-        , TArrow
-            ( TArrow (State, State)
-            , TArrow (TArrow (State, State), TArrow (State, State)) ) )
+        ( TStateOpComp2 Operations.func
+        , RArrow
+            ( RArrow (RState, RState)
+            , RArrow (RArrow (RState, RState), RArrow (RState, RState)) ) )
   | Op "if_colors_equal" ->
       Exists
-        ( TStateOpComp5 if_colors_equal
-        , TArrow
-            ( TArrow (State, State)
-            , TArrow
-                ( TArrow (State, State)
-                , TArrow
-                    ( TArrow (State, State)
-                    , TArrow
-                        ( TArrow (State, State)
-                        , TArrow (TArrow (State, State), TArrow (State, State))
+        ( TStateOpComp5 Operations.if_colors_equal
+        , RArrow
+            ( RArrow (RState, RState)
+            , RArrow
+                ( RArrow (RState, RState)
+                , RArrow
+                    ( RArrow (RState, RState)
+                    , RArrow
+                        ( RArrow (RState, RState)
+                        , RArrow
+                            (RArrow (RState, RState), RArrow (RState, RState))
                         ) ) ) ) )
   | Op "if_locs_equal" ->
       Exists
-        ( TStateOpComp5 if_locs_equal
-        , TArrow
-            ( TArrow (State, State)
-            , TArrow
-                ( TArrow (State, State)
-                , TArrow
-                    ( TArrow (State, State)
-                    , TArrow
-                        ( TArrow (State, State)
-                        , TArrow (TArrow (State, State), TArrow (State, State))
+        ( TStateOpComp5 Operations.if_locs_equal
+        , RArrow
+            ( RArrow (RState, RState)
+            , RArrow
+                ( RArrow (RState, RState)
+                , RArrow
+                    ( RArrow (RState, RState)
+                    , RArrow
+                        ( RArrow (RState, RState)
+                        , RArrow
+                            (RArrow (RState, RState), RArrow (RState, RState))
                         ) ) ) ) )
   | Op "move_selected" ->
       Exists
-        ( TStateOpComp1 move_selected
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.move_selected
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "add_nb" ->
       Exists
-        ( TStateOpComp1 add_nb
-        , TArrow (TArrow (State, State), TArrow (State, State)) )
+        ( TStateOpComp1 Operations.add_nb
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "add_conn" ->
       Exists
-        ( TStateOpComp3 add_conn
-        , TArrow
-            ( TArrow (State, State)
-            , TArrow
-                ( TArrow (State, State)
-                , TArrow (TArrow (State, State), TArrow (State, State)) ) ) )
+        ( TStateOpComp3 Operations.add_conn
+        , RArrow
+            ( RArrow (RState, RState)
+            , RArrow
+                ( RArrow (RState, RState)
+                , RArrow (RArrow (RState, RState), RArrow (RState, RState)) ) )
+        )
   | Op "identity" ->
-      Exists (TStateOp identity, TArrow (State, State))
+      Exists (TStateOp Operations.identity, RArrow (RState, RState))
   | Op unknown_name ->
       failwith @@ Format.sprintf "unrecognized primitive: %s" unknown_name
   | Abstraction (parameter_ty, b) -> (
     match typecheck (CBinding (cxt, parameter_ty)) b with
     | Exists (b', terminal_ty) ->
-        Exists (TAbstraction b', TArrow (parameter_ty, terminal_ty)) )
+        Exists (TAbstraction b', RArrow (parameter_ty, terminal_ty)) )
   | Application (f, x) -> (
     match (typecheck cxt f, typecheck cxt x) with
     | Exists (f', f_ty), Exists (x', x_ty) -> (
       match f_ty with
-      | TArrow (x_ty', terminal_ty) -> (
-        match equal_ty x_ty x_ty' with
+      | RArrow (x_ty', terminal_ty) -> (
+        match Reified_type.equal x_ty x_ty' with
         | Some Refl ->
             Exists (TApplication (f', x'), terminal_ty)
         | None ->
@@ -347,29 +380,33 @@ type exists_value = ExistsValue : 't -> exists_value
 let typecheck_and_eval e =
   match typecheck CEmpty e with Exists (te, _) -> ExistsValue (eval () te)
 
-let graph_int = kind "int" []
+let graph_int = Type.kind "int" []
 
-let graph_int_binop = graph_int @> graph_int @> graph_int
+let graph_int_binop = Type.(graph_int @> graph_int @> graph_int)
 
-let graph_state = kind "graph_state" []
+let graph_state = Type.kind "graph_state" []
 
-let graph_transform = graph_state @> graph_state
+let graph_transform = Type.(graph_state @> graph_state)
 
-let graph_app1 = graph_transform @> graph_state @> graph_state
+let graph_app1 = Type.(graph_transform @> graph_state @> graph_state)
 
 let graph_app2 =
-  graph_transform @> graph_transform @> graph_state @> graph_state
+  Type.(graph_transform @> graph_transform @> graph_state @> graph_state)
 
 let graph_app3 =
-  graph_transform @> graph_transform @> graph_transform @> graph_state
-  @> graph_state
+  Type.(
+    graph_transform @> graph_transform @> graph_transform @> graph_state
+    @> graph_state )
 
 let graph_app5 =
-  graph_transform @> graph_transform @> graph_transform @> graph_transform
-  @> graph_transform @> graph_state @> graph_state
+  Type.(
+    graph_transform @> graph_transform @> graph_transform @> graph_transform
+    @> graph_transform @> graph_state @> graph_state )
 
 let graph_for =
-  graph_int @> graph_transform @> graph_transform @> graph_state @> graph_state
+  Type.(
+    graph_int @> graph_transform @> graph_transform @> graph_state
+    @> graph_state )
 
 let initial_nonintegral_v1_primitives_types_alist =
   [ ("plus", graph_int_binop)
@@ -433,24 +470,24 @@ let all_primitives_types_alist ~max_color:_ = all_v2_primitives_types_alist
 
 let initial_primitives_list ~max_color =
   initial_primitives_types_alist ~max_color
-  |> List.map ~f:(fun (name, ty) -> Primitive {name; ty})
+  |> List.map ~f:(fun (name, ty) -> Program.Primitive {name; ty})
 
 let all_primitives_list ~max_color =
   all_primitives_types_alist ~max_color
-  |> List.map ~f:(fun (name, ty) -> Primitive {name; ty})
+  |> List.map ~f:(fun (name, ty) -> Program.Primitive {name; ty})
 
 let initial_primitives ~max_color =
   Hashtbl.of_alist_exn (module String)
-  @@ List.map ~f:(fun (name, ty) -> (name, Primitive {name; ty}))
+  @@ List.map ~f:(fun (name, ty) -> (name, Program.Primitive {name; ty}))
   @@ initial_primitives_types_alist ~max_color
 
 let all_primitives ~max_color =
   Hashtbl.of_alist_exn (module String)
-  @@ List.map ~f:(fun (name, ty) -> (name, Primitive {name; ty}))
+  @@ List.map ~f:(fun (name, ty) -> (name, Program.Primitive {name; ty}))
   @@ all_primitives_types_alist ~max_color
 
 let initial_dsl ~max_color =
-  dsl_of_primitives graph_state @@ initial_primitives_list ~max_color
+  Dsl.of_primitives graph_state @@ initial_primitives_list ~max_color
 
 let initial_primitive_entries ~max_color =
   Hashtbl.of_alist_exn (module String)
@@ -462,41 +499,20 @@ let rec var_of_int i =
   else if i = 0 then VarZero
   else failwith "indices must be greater than or equal to zero"
 
-type any_ty = AnyTy : 'a ty -> any_ty
-
-let rec ty_of_dc_type : dc_type -> any_ty = function
-  | Arrow {left; right; _} -> (
-    match (ty_of_dc_type left, ty_of_dc_type right) with
-    | AnyTy t_1, AnyTy t_2 ->
-        AnyTy (TArrow (t_1, t_2)) )
-  | Id _ ->
-      failwith "type variable in unified generic expression"
-  | Constructor {name; parameters; _} -> (
-      if not (List.is_empty parameters) then
-        failwith "graph domain has only zero arity constructors"
-      else
-        match name with
-        | "int" ->
-            AnyTy Integer
-        | "graph_state" ->
-            AnyTy State
-        | _ ->
-            failwith "unrecognized constructor" )
-
-let rec expr_of_generic ~max_color = function
-  | GIndex i ->
+let rec expr_of_generic ~max_color : Arg_typed_program.t -> expr = function
+  | ATIndex i ->
       var_of_int i
-  | GPrimitive name -> (
+  | ATPrimitive name -> (
     try
       let n = int_of_string name in
-      Int n
+      EInt n
     with Failure _ ->
-      if String.(name = "initial") then State (initial_state ~max_color)
+      if String.(name = "initial") then EState (State.empty ~max_color)
       else Op name )
-  | GApply (f, x) ->
+  | ATApply (f, x) ->
       Application (expr_of_generic ~max_color f, expr_of_generic ~max_color x)
-  | GAbstraction (ty, b) -> (
-    match ty_of_dc_type ty with
+  | ATAbstraction (ty, b) -> (
+    match Reified_type.of_type ty with
     | AnyTy ty' ->
         Abstraction (ty', expr_of_generic ~max_color b) )
 
@@ -508,5 +524,5 @@ let evaluate ~max_color ~timeout ~attempts p g =
            | ExistsValue _ ->
                Some ()
          with e ->
-           Format.eprintf "ERROR: %s\n" @@ string_of_program p ;
+           Format.eprintf "ERROR: %s\n" @@ Program.to_string p ;
            raise e )
