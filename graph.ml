@@ -3,38 +3,45 @@ open Antireduce
 open Yojson_util
 
 type t =
-  { size: int
-  ; forward_edges: int Map.M(Util.IntPair).t
-  ; backward_edges: int Map.M(Util.IntPair).t
+  { forward_edges: (int * int) Map.M(Util.IntPair).t
+  ; backward_edges: (int * int) Map.M(Util.IntPair).t
+  ; next_id: int
+  ; size: int
   ; max_conn: int }
 [@@deriving fields]
 
-let yojson_of_edges = yojson_of_map Util.IntPair.yojson_of_t yojson_of_int
+let yojson_of_edges =
+  yojson_of_map Util.IntPair.yojson_of_t Util.IntPair.yojson_of_t
 
 let yojson_of_t g =
   `Assoc
-    [ ("size", yojson_of_int g.size)
-    ; ("forward_edges", yojson_of_edges g.forward_edges)
+    [ ("forward_edges", yojson_of_edges g.forward_edges)
     ; ("backward_edges", yojson_of_edges g.backward_edges)
+    ; ("next_id", yojson_of_int g.next_id)
+    ; ("size", yojson_of_int g.size)
     ; ("max_conn", `Int g.max_conn) ]
 
-let edges_of_yojson : Yojson.Safe.t -> int Map.M(Util.IntPair).t =
-  map_of_yojson (module Util.IntPair) Util.IntPair.t_of_yojson int_of_yojson
+let edges_of_yojson : Yojson.Safe.t -> (int * int) Map.M(Util.IntPair).t =
+  map_of_yojson
+    (module Util.IntPair)
+    Util.IntPair.t_of_yojson Util.IntPair.t_of_yojson
 
 let t_of_yojson = function
   | `Assoc
-      [ ("size", `Int size)
-      ; ("forward_edges", j_forward_edges)
+      [ ("forward_edges", j_forward_edges)
       ; ("backward_edges", j_backward_edges)
+      ; ("next_id", `Int next_id)
+      ; ("size", `Int size)
       ; ("max_conn", `Int max_conn) ] ->
-      { size
-      ; forward_edges= edges_of_yojson j_forward_edges
+      { forward_edges= edges_of_yojson j_forward_edges
       ; backward_edges= edges_of_yojson j_backward_edges
+      ; next_id
+      ; size
       ; max_conn }
   | _ ->
       failwith "Graph.t_of_yojson: corrupted graph"
 
-let add_node g = (size g, {g with size= size g + 1})
+let add_node g = (next_id g, {g with next_id= next_id g + 1; size= size g + 1})
 
 let add_edge dir port g cursor neighbor =
   if
@@ -57,10 +64,11 @@ let add_edge dir port g cursor neighbor =
     then g
     else
       let cursor_edges =
-        Map.add_exn cursor_edges ~key:(cursor, port) ~data:neighbor
+        Map.add_exn cursor_edges ~key:(cursor, port) ~data:(next_id g, neighbor)
       in
       let neighbor_edges =
-        Map.add_exn neighbor_edges ~key:(neighbor, port) ~data:cursor
+        Map.add_exn neighbor_edges ~key:(neighbor, port)
+          ~data:(next_id g + 1, cursor)
       in
       let forward_edges, backward_edges =
         match dir with
@@ -69,14 +77,15 @@ let add_edge dir port g cursor neighbor =
         | Backward ->
             (neighbor_edges, cursor_edges)
       in
-      {g with forward_edges; backward_edges}
+      {g with forward_edges; backward_edges; next_id= next_id g + 2}
 
 let empty ~max_conn =
   snd
   @@ add_node
-       { size= 0
-       ; forward_edges= Map.empty (module Util.IntPair)
+       { forward_edges= Map.empty (module Util.IntPair)
        ; backward_edges= Map.empty (module Util.IntPair)
+       ; next_id= 0
+       ; size= 0
        ; max_conn }
 
 module Frozen = struct
@@ -95,7 +104,7 @@ module Frozen = struct
   let size = Map.length
 
   let of_graph g =
-    let process view' ((n_1, _), n_2) =
+    let process view' ((n_1, _), (_, n_2)) =
       Map.update view' n_1 ~f:(function
         | Some nbs ->
             Set.add nbs n_2
