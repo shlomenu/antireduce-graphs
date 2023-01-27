@@ -143,12 +143,6 @@ let rec typecheck : type c. c context -> expr -> c exists_texpr =
         , RArrow
             ( RArrow (RState, RState)
             , RArrow (RArrow (RState, RState), RArrow (RState, RState)) ) )
-  | Op "func" ->
-      Exists
-        ( TStateOpComp2 Operations.func
-        , RArrow
-            ( RArrow (RState, RState)
-            , RArrow (RArrow (RState, RState), RArrow (RState, RState)) ) )
   | Op "if_positions_equal" ->
       Exists
         ( TStateOpComp5 Operations.if_positions_equal
@@ -275,7 +269,6 @@ let initial_primitives_types_alist =
   ; ("prev_port", graph_app1)
   ; ("port_func", graph_app2)
   ; ("pos_func", graph_app2)
-  ; ("func", graph_app2)
   ; ("if_positions_equal", graph_app5)
   ; ("move", graph_app1)
   ; ("add_nb", graph_app1)

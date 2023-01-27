@@ -15,10 +15,6 @@ let pos_func (f : State.t -> State.t) (g : State.t -> State.t) (s : State.t) :
     State.t =
   g {(f s) with pos= s.pos}
 
-let func (f : State.t -> State.t) (g : State.t -> State.t) (s : State.t) :
-    State.t =
-  g {(f s) with port= s.port; pos= s.pos}
-
 let if_positions_equal (f : State.t -> State.t) (g : State.t -> State.t)
     (h : State.t -> State.t) (k : State.t -> State.t) (l : State.t -> State.t)
     (s : State.t) : State.t =
@@ -28,13 +24,12 @@ let move (f : State.t -> State.t) (s : State.t) : State.t =
   f {s with pos= Option.value_map (State.selected s) ~default:s.pos ~f:Fn.id}
 
 let add_nb (f : State.t -> State.t) (s : State.t) =
-  f
-    { s with
-      graph=
-        ( if Option.is_none (State.selected s) then
-          let nb, g' = Graph.add_node s.graph in
-          Graph.add_edge s.port g' s.pos nb
-        else s.graph ) }
+  match State.selected s with
+  | Some _ ->
+      f s
+  | None ->
+      let nb, g' = Graph.add_node s.graph in
+      {s with graph= Graph.add_edge s.port g' s.pos nb; pos= nb}
 
 let add_conn (f : State.t -> State.t) (g : State.t -> State.t)
     (h : State.t -> State.t) (s : State.t) : State.t =
