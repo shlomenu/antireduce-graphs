@@ -2,6 +2,7 @@
  (public_name antireduce_graphs)
  (name antireduce_graphs)
  (libraries core antireduce)
+ (modules ext direction eval graph operations state)
  (flags
   (:standard -w -33))
  (preprocess

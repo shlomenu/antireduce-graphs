@@ -1,22 +1,19 @@
 open Core
 open Antireduce
-include State
-include Eval
-module S = Yojson.Safe
 module SU = Yojson.Safe.Util
 
 let name_of_domain = "graph"
 
-let parse_program ?(primitives = all_primitives) =
+let parse_program ?(primitives = Eval.all_primitives) =
   Parser.parse_program primitives
 
-let parse_stitch_invention ?(primitives = all_primitives) =
+let parse_stitch_invention ?(primitives = Eval.all_primitives) =
   Parser.parse_stitch_invention primitives
 
-let parse_program_exn ?(primitives = all_primitives) =
+let parse_program_exn ?(primitives = Eval.all_primitives) =
   Parser.parse_program_exn primitives
 
-let parse_stitch_invention_exn ?(primitives = all_primitives) =
+let parse_stitch_invention_exn ?(primitives = Eval.all_primitives) =
   Parser.parse_stitch_invention_exn primitives
 
 let explore ~exploration_timeout ~eval_timeout ~attempts ~dsl
@@ -27,11 +24,11 @@ let explore ~exploration_timeout ~eval_timeout ~attempts ~dsl
     ~representations_dir
     ~apply_to_state:(fun f ->
       Apply
-        ( Primitive {name= "save"; ty= graph_transform}
-        , Apply (f, Primitive {name= "initial"; ty= graph_state}) ) )
-    ~evaluate:(evaluate ~max_conn) ~retrieve_result
+        ( Primitive {name= "save"; ty= Eval.graph_transform}
+        , Apply (f, Primitive {name= "initial"; ty= Eval.graph_state}) ) )
+    ~evaluate:(Eval.evaluate ~max_conn) ~retrieve_result
     ~nontrivial:(fun g -> Graph.size g > 1)
-    ~parse:parse_program_exn ~request:graph_transform
+    ~parse:parse_program_exn ~request:Eval.graph_transform
     ~yojson_of_output:Graph.yojson_of_t
     ~keys_of_output:(fun g ->
       let view = Graph.Frozen.of_graph g in
