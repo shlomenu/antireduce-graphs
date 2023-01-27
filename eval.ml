@@ -123,10 +123,6 @@ let rec typecheck : type c. c context -> expr -> c exists_texpr =
       Exists (TState s, RState)
   | Op "save" ->
       Exists (TStateOp Operations.save, RArrow (RState, RState))
-  | Op "switch_direction" ->
-      Exists
-        ( TStateOpComp1 Operations.switch_direction
-        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "next_port" ->
       Exists
         ( TStateOpComp1 Operations.next_port
@@ -144,12 +140,6 @@ let rec typecheck : type c. c context -> expr -> c exists_texpr =
   | Op "pos_func" ->
       Exists
         ( TStateOpComp2 Operations.pos_func
-        , RArrow
-            ( RArrow (RState, RState)
-            , RArrow (RArrow (RState, RState), RArrow (RState, RState)) ) )
-  | Op "dir_func" ->
-      Exists
-        ( TStateOpComp2 Operations.dir_func
         , RArrow
             ( RArrow (RState, RState)
             , RArrow (RArrow (RState, RState), RArrow (RState, RState)) ) )
@@ -281,12 +271,10 @@ let graph_app5 =
 
 let initial_primitives_types_alist =
   [ ("identity", graph_transform)
-  ; ("switch_direction", graph_app1)
   ; ("next_port", graph_app1)
   ; ("prev_port", graph_app1)
   ; ("port_func", graph_app2)
   ; ("pos_func", graph_app2)
-  ; ("dir_func", graph_app2)
   ; ("func", graph_app2)
   ; ("if_positions_equal", graph_app5)
   ; ("move", graph_app1)

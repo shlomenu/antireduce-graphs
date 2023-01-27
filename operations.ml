@@ -2,9 +2,6 @@ open Core
 
 let identity : State.t -> State.t = Fn.id
 
-let switch_direction (f : State.t -> State.t) (s : State.t) : State.t =
-  f {s with dir= Direction.reverse @@ State.dir s}
-
 let next_port (f : State.t -> State.t) (s : State.t) : State.t =
   f {s with port= (s.port + 1) mod s.graph.max_conn}
 
@@ -18,13 +15,9 @@ let pos_func (f : State.t -> State.t) (g : State.t -> State.t) (s : State.t) :
     State.t =
   g {(f s) with pos= s.pos}
 
-let dir_func (f : State.t -> State.t) (g : State.t -> State.t) (s : State.t) :
-    State.t =
-  g {(f s) with dir= s.dir}
-
 let func (f : State.t -> State.t) (g : State.t -> State.t) (s : State.t) :
     State.t =
-  g {(f s) with port= s.port; pos= s.pos; dir= s.dir}
+  g {(f s) with port= s.port; pos= s.pos}
 
 let if_positions_equal (f : State.t -> State.t) (g : State.t -> State.t)
     (h : State.t -> State.t) (k : State.t -> State.t) (l : State.t -> State.t)
@@ -40,15 +33,14 @@ let add_nb (f : State.t -> State.t) (s : State.t) =
       graph=
         ( if Option.is_none (State.selected s) then
           let nb, g' = Graph.add_node s.graph in
-          Graph.add_edge s.dir s.port g' s.pos nb
+          Graph.add_edge s.port g' s.pos nb
         else s.graph ) }
 
 let add_conn (f : State.t -> State.t) (g : State.t -> State.t)
     (h : State.t -> State.t) (s : State.t) : State.t =
   h
     { s with
-      graph=
-        Graph.add_edge s.dir s.port s.graph (State.pos (f s)) (State.pos (g s))
+      graph= Graph.add_edge s.port s.graph (State.pos (f s)) (State.pos (g s))
     }
 
 let last_found : Graph.t option ref = ref None
