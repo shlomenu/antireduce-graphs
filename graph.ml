@@ -315,57 +315,64 @@ module Morphism = struct
              if snd b > snd a then b else a )
       |> fst
     in
-    let rec go ?(included = Int.Set.singleton root) bfs_tree_rev =
-      let level =
-        List.hd_exn bfs_tree_rev
-        |> List.fold ~init:(Int.Map.empty, Int.Set.empty)
-             ~f:(fun (included_nbs, level) included_node ->
-               let frontier_nodes =
-                 Set.diff (neighbors_1 morphism included_node) included
-               in
-               ( Set.fold frontier_nodes ~init:included_nbs
-                   ~f:(fun included_nbs' frontier_node ->
-                     Map.update included_nbs' frontier_node ~f:(function
-                       | Some nbs ->
-                           Set.add nbs included_node
-                       | None ->
-                           Int.Set.singleton included_node ) )
-               , Set.union level frontier_nodes ) )
-        |> fun (included_nbs, level) ->
-        let rec go' included' included_nbs' = function
-          | _ :: _ as ns ->
-              List.sort ns ~compare:(fun x y ->
-                  let c =
-                    -compare
-                       (Set.length @@ Map.find_exn included_nbs' x)
-                       (Set.length @@ Map.find_exn included_nbs' y)
-                  in
-                  if c <> 0 then c
-                  else
-                    -compare
-                       (Set.length @@ Map.find_exn (view_1 morphism) x)
-                       (Set.length @@ Map.find_exn (view_1 morphism) y) )
-              |> Fn.flip List.split_n 1
-              |> fun (ft, rest) ->
-              let ft = List.hd_exn ft in
-              ft
-              :: go' (Set.add included' ft)
-                   ( Set.diff (neighbors_1 morphism ft) included'
-                   |> Set.fold ~init:included_nbs'
-                        ~f:(fun included_nbs'' nonincluded_ft_nb ->
-                          Map.change included_nbs'' nonincluded_ft_nb
-                            ~f:(Option.map ~f:(Fn.flip Set.add ft)) ) )
-                   rest
-          | [] ->
-              []
+    let rec go
+        ?(excluded = Set.remove (Int.Set.of_list @@ nodes_1 morphism) root)
+        ?(included = Int.Set.singleton root) bfs_tree_rev =
+      if not (Set.is_empty excluded) then
+        let level =
+          List.hd_exn bfs_tree_rev
+          |> List.fold ~init:(Int.Map.empty, Int.Set.empty)
+               ~f:(fun (included_nbs, level) included_node ->
+                 let frontier_nodes =
+                   Set.diff (neighbors_1 morphism included_node) included
+                 in
+                 ( Set.fold frontier_nodes ~init:included_nbs
+                     ~f:(fun included_nbs' frontier_node ->
+                       Map.update included_nbs' frontier_node ~f:(function
+                         | Some nbs ->
+                             Set.add nbs included_node
+                         | None ->
+                             Int.Set.singleton included_node ) )
+                 , Set.union level frontier_nodes ) )
+          |> fun (included_nbs, level) ->
+          let rec go' included' included_nbs' = function
+            | _ :: _ as ns ->
+                List.sort ns ~compare:(fun x y ->
+                    let c =
+                      -compare
+                         (Set.length @@ Map.find_exn included_nbs' x)
+                         (Set.length @@ Map.find_exn included_nbs' y)
+                    in
+                    if c <> 0 then c
+                    else
+                      -compare
+                         (Set.length @@ Map.find_exn (view_1 morphism) x)
+                         (Set.length @@ Map.find_exn (view_1 morphism) y) )
+                |> Fn.flip List.split_n 1
+                |> fun (ft, rest) ->
+                let ft = List.hd_exn ft in
+                ft
+                :: go' (Set.add included' ft)
+                     ( Set.diff (neighbors_1 morphism ft) included'
+                     |> Set.fold ~init:included_nbs'
+                          ~f:(fun included_nbs'' nonincluded_ft_nb ->
+                            Map.change included_nbs'' nonincluded_ft_nb
+                              ~f:(Option.map ~f:(Fn.flip Set.add ft)) ) )
+                     rest
+            | [] ->
+                []
+          in
+          go' included included_nbs @@ Set.to_list level
         in
-        go' included included_nbs @@ Set.to_list level
-      in
-      go
-        ~included:
-          (List.fold level ~init:included ~f:(fun included' n ->
-               Set.add included' n ) )
-        (level :: bfs_tree_rev)
+        go
+          ~excluded:
+            (List.fold level ~init:excluded ~f:(fun excluded' n ->
+                 Set.remove excluded' n ) )
+          ~included:
+            (List.fold level ~init:included ~f:(fun included' n ->
+                 Set.add included' n ) )
+          (level :: bfs_tree_rev)
+      else bfs_tree_rev
     in
     List.concat @@ List.rev @@ go [[root]]
 
