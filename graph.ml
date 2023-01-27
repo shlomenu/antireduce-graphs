@@ -46,9 +46,9 @@ let add_node g = (next_id g, {g with next_id= next_id g + 1; size= size g + 1})
 let add_edge dir port g cursor neighbor =
   if
     cursor = neighbor || cursor < 0
-    || cursor >= size g
+    || cursor >= next_id g
     || neighbor < 0
-    || neighbor >= size g
+    || neighbor >= next_id g
   then g
   else
     let cursor_edges, neighbor_edges =
@@ -103,6 +103,8 @@ module Frozen = struct
 
   let size = Map.length
 
+  let nodes = Map.keys
+
   let of_graph g =
     let process view' ((n_1, _), (_, n_2)) =
       Map.update view' n_1 ~f:(function
@@ -121,24 +123,14 @@ module Frozen = struct
     in
     List.fold (Map.to_alist g.backward_edges) ~init:view ~f:process
 
-  let is_node view n = n >= 0 && n < size view
+  let neighbors_exn = Map.find_exn
 
-  let is_node_check view n =
-    if not (is_node view n) then
-      raise
-        (Not_found_s (Sexp.of_string @@ Format.sprintf "%i > %i" n @@ size view))
-
-  let neighbors_exn view n = is_node_check view n ; Map.find_exn view n
-
-  let connected view n_1 n_2 =
-    is_node_check view n_1 ;
-    is_node_check view n_2 ;
-    Fn.flip Set.mem n_2 @@ Map.find_exn view n_1
+  let connected view n_1 n_2 = Fn.flip Set.mem n_2 @@ Map.find_exn view n_1
 
   let degree view n = Set.length @@ neighbors_exn view n
 
   let degrees view =
-    List.sort ~compare @@ List.map ~f:(degree view) @@ List.range 0 @@ size view
+    List.sort ~compare @@ List.map ~f:(degree view) @@ nodes view
 
   let equal_deg_hist view_1 view_2 =
     List.equal equal (degrees view_1) (degrees view_2)
@@ -175,17 +167,19 @@ module Morphism = struct
 
   let size morphism = Map.length @@ view_1 morphism
 
-  let all_nodes = Fn.compose (List.range 0) size
+  let nodes_1 morphism = Frozen.nodes (view_1 morphism)
+
+  let nodes_2 morphism = Frozen.nodes (view_2 morphism)
 
   let of_views ~view_1 ~view_2 =
     assert (Frozen.size view_1 = Frozen.size view_2) ;
     let nbs_in_frontier =
-      Frozen.size view_1 |> List.range 0
+      Frozen.nodes view_1
       |> List.map ~f:(fun i -> (i, 0))
       |> Map.of_alist_exn (module Int)
     in
     let nbs_in_non_frontier view =
-      Frozen.size view |> List.range 0
+      Frozen.nodes view
       |> List.map ~f:(fun i -> (i, Frozen.degree view i))
       |> Map.of_alist_exn (module Int)
     in
@@ -222,7 +216,7 @@ module Morphism = struct
         |> Fn.flip Set.diff (mapped_2 morphism)
         |> Set.to_list
     | None ->
-        size morphism |> List.range 0
+        nodes_2 morphism
 
   let consistent morphism ~n_1 ~n_2 =
     if
@@ -315,7 +309,7 @@ module Morphism = struct
 
   let to_bfs_tree morphism =
     let root =
-      all_nodes morphism
+      nodes_1 morphism
       |> List.map ~f:(fun i -> (i, Frozen.degree (view_1 morphism) i))
       |> List.fold ~init:(-1, Int.min_value) ~f:(fun a b ->
              if snd b > snd a then b else a )
