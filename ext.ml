@@ -21,6 +21,7 @@ let explore ~exploration_timeout ~program_size_limit ~eval_timeout ~attempts
   let max_conn = SU.to_int @@ SU.member "max_conn" j in
   let retrieve_result () = Util.value_exn !Operations.last_found in
   Exploration.multikey_explore ~exploration_timeout ~program_size_limit
+    ~initial_program:(Primitive {name= "identity"; ty= Eval.graph_transform})
     ~eval_timeout ~attempts ~dsl ~representations_dir
     ~apply_to_state:(fun f ->
       Apply
