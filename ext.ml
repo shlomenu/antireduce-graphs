@@ -16,12 +16,12 @@ let parse_program_exn ?(primitives = Eval.all_primitives) =
 let parse_stitch_invention_exn ?(primitives = Eval.all_primitives) =
   Parser.parse_stitch_invention_exn primitives
 
-let explore ~exploration_timeout ~eval_timeout ~attempts ~dsl
-    ~representations_dir j =
+let explore ~exploration_timeout ~program_size_limit ~eval_timeout ~attempts
+    ~dsl ~representations_dir j =
   let max_conn = SU.to_int @@ SU.member "max_conn" j in
   let retrieve_result () = Util.value_exn !Operations.last_found in
-  Exploration.multikey_explore ~exploration_timeout ~eval_timeout ~attempts ~dsl
-    ~representations_dir
+  Exploration.multikey_explore ~exploration_timeout ~program_size_limit
+    ~eval_timeout ~attempts ~dsl ~representations_dir
     ~apply_to_state:(fun f ->
       Apply
         ( Primitive {name= "save"; ty= Eval.graph_transform}
