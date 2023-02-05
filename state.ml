@@ -17,10 +17,6 @@ let add_node s =
   let nb, graph = Graph.add_node s.graph in
   {s with graph; pos= nb}
 
-let remove_top s = match conn s with [] -> [] | _ :: conn' -> conn'
-
-let add_edge s nb = {s with graph= Graph.add_edge s.port s.graph s.pos nb}
-
 module Operations = struct
   let identity : t -> t = Fn.id
 
@@ -42,7 +38,7 @@ module Operations = struct
     f {s with pos= Option.value_map (selected s) ~default:s.pos ~f:Fn.id}
 
   let add (f : t -> t) (s : t) : t =
-    if has_conn s || not (has_isolated s) then add_node s else f s
+    if has_conn s && not (has_isolated s) then f @@ add_node s else f s
 
   let push (f : t -> t) (s : t) : t = f {s with conn= pos s :: conn s}
 
@@ -50,21 +46,23 @@ module Operations = struct
     f
       { s with
         conn=
-          ( match (remove_top s, conn s, has_isolated s) with
-          | tl_conn, _, false ->
-              tl_conn
+          ( match (List.tl @@ conn s, conn s, has_isolated s) with
+          | rest, _, false ->
+              Option.value_map rest ~default:[] ~f:Fn.id
           | _, [], true ->
               failwith "pop: isolated node has no way to connect with neighbors"
-          | tl_conn, all_conn, true ->
-              if List.exists tl_conn ~f:(( <> ) (pos s)) then tl_conn
-              else all_conn ) }
+          | None, _, true ->
+              failwith "pop: impossible"
+          | Some rest, all, true ->
+              if List.exists rest ~f:(( <> ) (pos s)) then rest else all ) }
 
   let connect (f : t -> t) (s : t) =
-    match (selected s, List.hd @@ conn s) with
-    | Some _, _ | None, None ->
-        f s
-    | None, Some nb ->
-        f @@ add_edge s nb
+    f
+      ( match (selected s, List.hd @@ conn s) with
+      | Some _, _ | None, None ->
+          s
+      | None, Some nb ->
+          {s with graph= Graph.add_edge s.port s.graph s.pos nb} )
 
   let last_found : Graph.t option ref = ref None
 
