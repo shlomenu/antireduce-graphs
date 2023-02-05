@@ -74,19 +74,6 @@ type (_, _) texpr =
          , (State.t -> State.t) -> (State.t -> State.t) -> State.t -> State.t
          )
          texpr
-  | TStateOpComp3 :
-      (   (State.t -> State.t)
-       -> (State.t -> State.t)
-       -> (State.t -> State.t)
-       -> State.t
-       -> State.t )
-      -> ( 'tc
-         ,    (State.t -> State.t)
-           -> (State.t -> State.t)
-           -> (State.t -> State.t)
-           -> State.t
-           -> State.t )
-         texpr
   | TStateOpComp5 :
       (   (State.t -> State.t)
        -> (State.t -> State.t)
@@ -121,31 +108,25 @@ let rec typecheck : type c. c context -> expr -> c exists_texpr =
       Exists (TInt i, RInt)
   | EState s ->
       Exists (TState s, RState)
-  | Op "save" ->
-      Exists (TStateOp Operations.save, RArrow (RState, RState))
+  | Op "identity" ->
+      Exists (TStateOp State.Operations.identity, RArrow (RState, RState))
   | Op "next_port" ->
       Exists
-        ( TStateOpComp1 Operations.next_port
+        ( TStateOpComp1 State.Operations.next_port
         , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
   | Op "prev_port" ->
       Exists
-        ( TStateOpComp1 Operations.prev_port
+        ( TStateOpComp1 State.Operations.prev_port
         , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
-  | Op "port_func" ->
+  | Op "func" ->
       Exists
-        ( TStateOpComp2 Operations.port_func
-        , RArrow
-            ( RArrow (RState, RState)
-            , RArrow (RArrow (RState, RState), RArrow (RState, RState)) ) )
-  | Op "pos_func" ->
-      Exists
-        ( TStateOpComp2 Operations.pos_func
+        ( TStateOpComp2 State.Operations.func
         , RArrow
             ( RArrow (RState, RState)
             , RArrow (RArrow (RState, RState), RArrow (RState, RState)) ) )
   | Op "if_positions_equal" ->
       Exists
-        ( TStateOpComp5 Operations.if_positions_equal
+        ( TStateOpComp5 State.Operations.if_positions_equal
         , RArrow
             ( RArrow (RState, RState)
             , RArrow
@@ -159,23 +140,26 @@ let rec typecheck : type c. c context -> expr -> c exists_texpr =
                         ) ) ) ) )
   | Op "move" ->
       Exists
-        ( TStateOpComp1 Operations.move
+        ( TStateOpComp1 State.Operations.move
         , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
-  | Op "add_nb" ->
+  | Op "add" ->
       Exists
-        ( TStateOpComp1 Operations.add_nb
+        ( TStateOpComp1 State.Operations.add
         , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
-  | Op "add_conn" ->
+  | Op "push" ->
       Exists
-        ( TStateOpComp3 Operations.add_conn
-        , RArrow
-            ( RArrow (RState, RState)
-            , RArrow
-                ( RArrow (RState, RState)
-                , RArrow (RArrow (RState, RState), RArrow (RState, RState)) ) )
-        )
-  | Op "identity" ->
-      Exists (TStateOp Operations.identity, RArrow (RState, RState))
+        ( TStateOpComp1 State.Operations.push
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
+  | Op "pop" ->
+      Exists
+        ( TStateOpComp1 State.Operations.pop
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
+  | Op "connect" ->
+      Exists
+        ( TStateOpComp1 State.Operations.connect
+        , RArrow (RArrow (RState, RState), RArrow (RState, RState)) )
+  | Op "save" ->
+      Exists (TStateOp State.Operations.save, RArrow (RState, RState))
   | Op unknown_name ->
       failwith @@ Format.sprintf "unrecognized primitive: %s" unknown_name
   | Abstraction (parameter_ty, b) -> (
@@ -224,8 +208,6 @@ let rec eval : type c t. c -> (c, t) texpr -> t =
       f
   | TStateOpComp2 f ->
       f
-  | TStateOpComp3 f ->
-      f
   | TStateOpComp5 f ->
       f
   | TVarZero ->
@@ -253,11 +235,6 @@ let graph_app1 = Type.(graph_transform @> graph_state @> graph_state)
 let graph_app2 =
   Type.(graph_transform @> graph_transform @> graph_state @> graph_state)
 
-let graph_app3 =
-  Type.(
-    graph_transform @> graph_transform @> graph_transform @> graph_state
-    @> graph_state )
-
 let graph_app5 =
   Type.(
     graph_transform @> graph_transform @> graph_transform @> graph_transform
@@ -267,12 +244,13 @@ let initial_primitives_types_alist =
   [ ("identity", graph_transform)
   ; ("next_port", graph_app1)
   ; ("prev_port", graph_app1)
-  ; ("port_func", graph_app2)
-  ; ("pos_func", graph_app2)
+  ; ("func", graph_app2)
   ; ("if_positions_equal", graph_app5)
   ; ("move", graph_app1)
-  ; ("add_nb", graph_app1)
-  ; ("add_conn", graph_app3) ]
+  ; ("add", graph_app1)
+  ; ("push", graph_app1)
+  ; ("pop", graph_app1)
+  ; ("connect", graph_app1) ]
 
 let all_primitives_types_alist =
   initial_primitives_types_alist

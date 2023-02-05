@@ -6,7 +6,8 @@ type t =
   { edges: (int * int) Map.M(Util.IntPair).t
   ; next_id: int
   ; size: int
-  ; max_conn: int }
+  ; max_conn: int
+  ; n_components: int }
 [@@deriving fields]
 
 let yojson_of_edges =
@@ -30,30 +31,49 @@ let t_of_yojson = function
       ; ("next_id", `Int next_id)
       ; ("size", `Int size)
       ; ("max_conn", `Int max_conn) ] ->
-      {edges= edges_of_yojson j_edges; next_id; size; max_conn}
+      {edges= edges_of_yojson j_edges; next_id; size; max_conn; n_components= 1}
   | _ ->
       failwith "Graph.t_of_yojson: corrupted graph"
 
-let add_node g = (next_id g, {g with next_id= next_id g + 1; size= size g + 1})
+let add_node g =
+  ( next_id g
+  , { g with
+      next_id= next_id g + 1
+    ; size= size g + 1
+    ; n_components= n_components g + 1 } )
 
+(* Assumes that if the node has multiple components, then a new edge will connect them.
+    This invariant is enforced by the design of operations in the State module. *)
 let add_edge port g cursor neighbor =
   if
     (Option.is_some @@ Map.find g.edges (cursor, port))
+    || (Option.is_some @@ Map.find g.edges (neighbor, port))
     || cursor = neighbor || cursor < 0
     || cursor >= next_id g
     || neighbor < 0
     || neighbor >= next_id g
   then g
   else
-    let edges =
-      Map.add_exn g.edges ~key:(cursor, port) ~data:(next_id g, neighbor)
-    in
-    {g with edges; next_id= next_id g + 1}
+    { g with
+      edges=
+        Map.add_exn g.edges ~key:(cursor, port) ~data:(next_id g, neighbor)
+        |> Map.add_exn ~key:(neighbor, port) ~data:(next_id g, cursor)
+    ; next_id= next_id g + 1
+    ; n_components=
+        ( match n_components g with
+        | 1 | 2 ->
+            1
+        | _ ->
+            failwith "add_edge: invalid number of connected components" ) }
 
 let empty ~max_conn =
   snd
   @@ add_node
-       {edges= Map.empty (module Util.IntPair); next_id= 0; size= 0; max_conn}
+       { edges= Map.empty (module Util.IntPair)
+       ; next_id= 0
+       ; size= 0
+       ; max_conn
+       ; n_components= 0 }
 
 module Frozen = struct
   type t = Set.M(Int).t Int.Map.t
