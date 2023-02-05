@@ -30,7 +30,9 @@ module Operations = struct
   let prev_port (f : t -> t) (s : t) : t =
     f {s with port= (if s.port = 0 then s.graph.max_conn - 1 else s.port - 1)}
 
-  let func (f : t -> t) (g : t -> t) (s : t) = g {s with graph= graph @@ f s}
+  let func (f : t -> t) (g : t -> t) (s : t) =
+    let graph' = graph @@ f s in
+    g {s with graph= (if Graph.n_components graph' > 1 then graph s else graph')}
 
   let if_positions_equal (f : t -> t) (g : t -> t) (h : t -> t) (k : t -> t)
       (l : t -> t) (s : t) : t =
