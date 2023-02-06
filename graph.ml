@@ -156,8 +156,8 @@ module Morphism = struct
 
   let of_views ~view_1 ~view_2 =
     assert (Frozen.size view_1 = Frozen.size view_2) ;
-    let nbs_in_frontier =
-      Frozen.nodes view_1
+    let nbs_in_frontier view =
+      Frozen.nodes view
       |> List.map ~f:(fun i -> (i, 0))
       |> Map.of_alist_exn (module Int)
     in
@@ -174,8 +174,8 @@ module Morphism = struct
     ; mapped_2= Int.Set.empty
     ; frontier_1= Int.Set.empty
     ; frontier_2= Int.Set.empty
-    ; nbs_in_frontier_1= nbs_in_frontier
-    ; nbs_in_frontier_2= nbs_in_frontier
+    ; nbs_in_frontier_1= nbs_in_frontier view_1
+    ; nbs_in_frontier_2= nbs_in_frontier view_2
     ; non_frontier_1= Int.Set.empty
     ; non_frontier_2= Int.Set.empty
     ; nbs_in_non_frontier_1= nbs_in_non_frontier view_1
